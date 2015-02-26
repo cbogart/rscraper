@@ -1,12 +1,13 @@
-directory = "http://cran.r-project.org/src/contrib/PACKAGES"
 import urllib
+from analyzeDeps import parseDESCRIPTION
 
-def getCranPackageInfo():
+
+def getCranDescription():
     directory = "http://cran.r-project.org/src/contrib/PACKAGES"
-    txt = urlopen(directory).readlines()
+    txt = urllib.urlopen(directory).readlines()
     return parseDESCRIPTION(txt)
 
-def getBioconductorPackageInfo():
+def getBioconductorDescription():
     directory = "http://bioconductor.org/packages/3.0/bioc/src/contrib/PACKAGES"
-    txt = urlopen(directory).readlines()
+    txt = urllib.urlopen(directory).readlines()
     return parseDESCRIPTION(txt)

@@ -1,9 +1,14 @@
 
-def extractGitPackageInfo(conn):
-    pkgs = conn.execute("select * from packages where package_id " + \
-       "in (select id from imports where package_name='DESCRIPTION');")
-    return {
-      "Package": packages.name,
-      "Title": packages.description,
-      "repository": "git" 
-    }
+def extractGitDescription(conn):
+    #pkgs = conn.execute("select * from gitprojects where id " + \
+       #"in (select project_id from gitfiles where project_name='DESCRIPTION');")
+    pkgs = conn.execute("select gitprojects.*, group_contact(imports.package_name) myimports from gitprojects " + \
+            "left join gitimports on imports.project_id=gitprojects.id where gitprojects.id in " + \
+            "(select project_id from gitfiles where project_name='DESCRIPTION');")
+    for p in pkgs:
+        yield {
+          "Package": [pkgs["gitprojects.name"]],
+          "Title": [pkgs["gitprojects.description"]],
+          "Imports": pkgs["myimports"].split(","),
+          "repository": "git" 
+        }

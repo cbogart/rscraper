@@ -34,6 +34,30 @@ def analyzeImportsDESCRIPTION(txt):
     db = analyzeImportsManyDescriptions(txt)
     return ("R", db[db.keys()[0]])
 
+def parseSections(txt):
+    chunk = []
+    for line in txt:
+        endless = line.replace("\n","")
+        if endless.strip() == "":
+            if (len(chunk) > 0): 
+                yield chunk
+            chunk = []
+        else:
+            chunk.append(endless)
+    if len(chunk) > 0:
+        yield chunk
+
+def parseFields(chunk):
+    fld = ""
+    for line in chunk:
+        if line[0] not in (" ", "\t"):
+            if (fld != ""):
+                yield fld
+                fld = ""
+        fld = fld + line.strip()
+    if fld != "": 
+        yield fld
+
 def parseDESCRIPTION(txt):
     def removeParenthetical(dep):
         return dep.split("(")[0].strip()
@@ -41,42 +65,25 @@ def parseDESCRIPTION(txt):
     db = dict()
     #rawdata = dict()
 
-    def parseSections(txt):
-        chunk = []
-        for line in txt:
-            if line.strip() == "":
-                if (len(chunk) > 0): 
-                    yield chunk
-                chunk = [line]
-            else:
-                chunk.append(line)
-        if len(chunk) > 0:
-            yield chunk
-
-    def parseFields(chunk):
-        fld = ""
-        for line in chunk:
-            if line[0] not in (" ", "\t"):
-                if (fld != ""):
-                    yield fld
-                    fld = ""
-            fld = fld + line[0].strip()
-        if fld != "": 
-            yield fld
-
     for sec in parseSections(txt):
         thissection = dict()
-        #thisraw = dict()
         for fld in parseFields(sec):
             code = fld.split(":")[0]
             rest = fld.split(":", 1)[1]
             rest = rest.strip()
-            restList = [removeParenthetical(r.strip()) for r in rest.split(",")]
+            try:
+                restList = [removeParenthetical(r.strip()) for r in rest.split(",")]
+            except:
+                print(rest)
+                pdb.set_trace()
+                print(rest)
 
             thissection[code] = restList
-            #thisraw[code] = rest
-        db[thissection["Package"]] = thissection
-        #rawdata[thissection["Package"]] = thisraw
+        try:
+            db[thissection["Package"][0]] = thissection
+        except:
+            pdb.set_trace()
+            print thissection
 
     return db
 

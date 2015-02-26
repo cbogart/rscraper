@@ -1,6 +1,7 @@
 
 from credentials import loadCredentials
-from getRepoMetadata import getBioconductorMetadata, getCranMetadata
+from getRepoMetadata import getBioconductorWebscrape, getCranWebscrape
 from getRepoMetadata import createMetadataTables, saveMetadata
 from dbutil import getConnection
-from repoScraper import getBioconductorPackageInfo, getCranPackageInfo
+from repoScraper import getBioconductorDescription, getCranDescription
+from analyzeDeps import parseDESCRIPTION

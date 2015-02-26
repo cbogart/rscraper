@@ -37,12 +37,12 @@ def importGhtorrentProjectCsv(fname, conn):
             hdrs = [h.strip('`') for h in csvreader.next()]
             hdrsComma = ','.join(hdrs)
             try:
-                conn.execute("drop table projects;")
+                conn.execute("drop table gitprojects;")
             except:
                 pass
-            createProjectsSQL = "create table projects (" + hdrsComma + ");"
+            createProjectsSQL = "create table gitprojects (" + hdrsComma + ");"
             conn.execute(createProjectsSQL)
-            insertProjectsSQL = "insert into projects (" + hdrsComma + ")" + \
+            insertProjectsSQL = "insert into gitprojects (" + hdrsComma + ")" + \
                   " values (" + ','.join(["?" for h in hdrs]) + ");"
             for row in csvreader:
                 rownum = rownum + 1
@@ -51,25 +51,25 @@ def importGhtorrentProjectCsv(fname, conn):
                     print "Wrote row ", rownum
                     conn.commit()    
         conn.commit()    
-        conn.execute("alter table projects add column cb_last_scan;");
-        conn.execute("alter table projects add column pushed_at;");
-        conn.execute("alter table projects add column forks_count;");
-        conn.execute("alter table projects add column stargazers_count;");
-        conn.execute("alter table projects add column watchers_count;");
-        conn.execute("alter table projects add column network_count;");
-        conn.execute("alter table projects add column error;");
+        conn.execute("alter table gitprojects add column cb_last_scan;");
+        conn.execute("alter table gitprojects add column pushed_at;");
+        conn.execute("alter table gitprojects add column forks_count;");
+        conn.execute("alter table gitprojects add column stargazers_count;");
+        conn.execute("alter table gitprojects add column watchers_count;");
+        conn.execute("alter table gitprojects add column network_count;");
+        conn.execute("alter table gitprojects add column error;");
 
 def createGitTables(conn):
     try:
-        conn.execute("drop table files;")
+        conn.execute("drop table gitfiles;")
     except:
         pass
     try:
-        conn.execute("drop table imports;")
+        conn.execute("drop table gitimports;")
     except:
         pass
-    conn.execute("create table files (" + filesColumns + ");")
-    conn.execute("create table imports (" + importsColumns + ");")
+    conn.execute("create table gitfiles (" + filesColumns + ");")
+    conn.execute("create table gitimports (" + importsColumns + ");")
 
    
 #remaining = 1
@@ -85,10 +85,10 @@ def hasDependencyInfo(path):
 # Fixed sql statements
 filesColumns = "file_id, project_id, path, size, last_edit, retrieved, " +\
                "repos, cb_last_scan, error"
-insertFilesSQL = "insert into files (" + filesColumns + ") values (" +\
+insertFilesSQL = "insert into gitfiles (" + filesColumns + ") values (" +\
                "?,?,?,?,?,?,?,?,?);"
 importsColumns = "file_id, project_id, package_name, cb_last_scan"
-insertImportsSQL = "insert into imports (" + importsColumns + ") values (" +\
+insertImportsSQL = "insert into gitimports (" + importsColumns + ") values (" +\
                "?,?,?,?);"
 
 class GitProjectInfo:
@@ -110,13 +110,13 @@ def queryRandomProject(credentials):
 
 def getRandomProject(conn):
    cur = conn.cursor()
-   cur.execute("select * from projects where cb_last_scan is NULL and (error is null or error = '') and deleted = '0'");
+   cur.execute("select * from gitprojects where cb_last_scan is NULL and (error is null or error = '') and deleted = '0'");
    rows = cur.fetchall()
    if len(rows) == 0:
        print "NO random project could be chosen -- none match the criterion."
        return
    randomrow = random.choice(rows)
-   return GitProjectInfo(row['projects.name'], row['projects.id'], row['projects.url'])
+   return GitProjectInfo(row['gitprojects.name'], row['gitprojects.id'], row['gitprojects.url'])
 
 def throttleGitAccess(git):
    if (git.rate_limiting[0] < 5):
@@ -134,10 +134,10 @@ def getProjectMetadata(projinf, git):
     return {"repo": repo, "tree": tree}
 
 def saveProjectMetadata(projinf, projmeta, conn):
-    conn.execute("update projects set pushed_at=?, forks_count=?, watchers_count=?,stargazers_count=?,network_count=?  where id=?", \
+    conn.execute("update gitprojects set pushed_at=?, forks_count=?, watchers_count=?,stargazers_count=?,network_count=?  where id=?", \
                (str(projmeta["repo"].pushed_at), projmeta["repo"].forks_count, projmeta["repo"].watchers_count, \
                projmeta["repo"].stargazers_count, projmeta["repo"].network_count, projinf.project_id))
-    conn.execute("delete from files where project_id=?", (projinf.project_id,))
+    conn.execute("delete from gitfiles where project_id=?", (projinf.project_id,))
     conn.commit()
 
 def queryFile(repo, projinf, path)
@@ -162,7 +162,7 @@ def saveFileImportInfo(projinf, fileinf, leaf, conn, filenum)
        (filenum, projinf.project_id, fileinf["path"], leaf.size, None, retrieved, "", int(time.time()), fileinf["error"]))
    
 def updateProjectScanStatus(projinf, error, conn):
-   conn.execute("update projects set cb_last_scan=?, error=? where id=?",
+   conn.execute("update gitprojects set cb_last_scan=?, error=? where id=?",
        (int(time.time()), error, projinf.project_id))
 
 def populateProjectMetadata(projinf, conn, git):
