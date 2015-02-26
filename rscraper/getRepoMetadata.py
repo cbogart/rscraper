@@ -34,7 +34,7 @@ def getBioconductorMetadata():
         title = do_or_error(lambda: titleparent.find("h2").get_text())
         description = do_or_error(lambda: titleparent.find_all("p")[1].get_text())
         print name, url, '/'.join(viewlist)
-        categories[name] = { "url": fullurl, "repos": "bioconductor", "views": viewlist, "citation": citation, "title": title, "description": description }
+        categories[name] = { "url": fullurl, "repository": "bioconductor", "views": viewlist, "citation": citation, "title": title, "description": description }
 
     return categories
 
@@ -61,7 +61,7 @@ def getCranMetadata():
                       citepage = BeautifulSoup(urllib2.urlopen("http://cran.r-project.org/web/packages/" + name + "/citation.html").read())
                       return citepage.find("blockquote").get_text()
                   })
-        categories[name] = { "url": fullurl, "repos": "cran", "views": viewlist, "citation": citation, "title": title, "description": description }
+        categories[name] = { "url": fullurl, "repository": "cran", "views": viewlist, "citation": citation, "title": title, "description": description }
 
     return categories
 
@@ -75,9 +75,12 @@ def recreateTable(conn, table, flds):
         
 def createMetadataTables(conn):
     recreateTable("tags", "package_id as integer, tag as string")
-    recreateTable("packages", "package_id as integer, name as string, repository as string, url as string, " +\
-                              "title as string, description as string, lastversion as string")
+    recreateTable("packages", "package_id as integer primary key, name as string, repository as string, " \
+                              "url as string, " +\
+                              "title as string, description as string, lastversion as string, " \
+                              "unique(name, repository)  on conflict replace")
     recreateTable("citations", "package_id as integer, name as string, citation as string, canonical as boolean")
+    conn.execute("add constraint packages (name, repository) unique");
 
 
 # Packages table: unique for: package URL.  There may be multiple sites for a project, e.g. a CRAN and 15 github projects with that name.
@@ -85,12 +88,14 @@ def createMetadataTables(conn):
 #  Cran beats Bioc beats Github.  Github many-forks beats github no-forks beats github forked, when exporting canonicals, but they're all listed
 
 def saveMetadata(pkgMetadata, pkgPackageInfo, conn):
-    for rec in categories:
-        pairs = [(rec, categories[rec]["repos"])]
-        conn.execute("insert or ignore into packages ("
-        for v in categories[rec]["views"]:
-            pairs.append( (rec, v) )
-        conn.executemany("insert into repositories (name, tag) values (?,?);", pairs)  
+    for rec in pkgMetadata:
+        pairs = [(rec, pkgMetadata[rec]["repos"])]
+        conn.execute("insert or ignore into packages (name, repository) values (?,?)", 
+                     (rec, pkgMetadata[rec]["repos"]))
+        conn.execute("update packages set " + 
+                "url = ?, title=?, description=?, lastversion=? where name=? and repository=?;", 
+                 (pkgMetadata["url"], pkgMetadata["Title"], pkgPackageInfo["description"],
+                  pkgMetadata["Version"], rec, pkgMetadata[rec]["repos"]))
         conn.commit()
 
     

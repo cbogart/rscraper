@@ -1,7 +1,7 @@
 import rscraper
 
 
-conn = getConnection()
+conn = getConnection("test.db")
 
 #update the listing of git projects
 #optionally, void git projects that have been touched, and not updated here recently
