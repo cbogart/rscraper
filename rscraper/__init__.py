@@ -5,3 +5,4 @@ from getRepoMetadata import createMetadataTables, saveMetadata
 from dbutil import getConnection
 from repoScraper import getBioconductorDescription, getCranDescription
 from analyzeDeps import parseDESCRIPTION
+from extractGitPackages import extractGitWebscrape, extractGitDescription

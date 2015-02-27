@@ -22,7 +22,7 @@ def getBioconductorWebscrape():
 
     index = BeautifulSoup(urllib2.urlopen("http://www.bioconductor.org/packages/release/bioc/").read())
     packages = index.find("div", class_="do_not_rebase").find_all("a")
-    for p in packages[:5]:
+    for p in packages:
         url = p.get("href")
         name = p.get_text()
         fullurl = "http://www.bioconductor.org/packages/release/bioc/" + url
@@ -56,7 +56,7 @@ def getCranWebscrape():
     
     index = BeautifulSoup(urllib2.urlopen("http://cran.r-project.org/web/packages/available_packages_by_name.html").read())
     packages = index.find("table").find_all("a")
-    for p in packages[:5]:
+    for p in packages:
         url = p.get("href")
         name = p.get_text()
         title = do_or_error(lambda: p.find_parent().find_parent().find_all("td")[2].get_text())
@@ -91,7 +91,7 @@ def createMetadataTables(conn):
     recreateTable(conn, "packages", "package_id integer primary key, name string, repository string, " \
                               "url string, " +\
                               "title string, description string, lastversion string, " \
-                              "unique(name, repository)  on conflict replace")
+                              "unique(name, repository, url)  on conflict replace")
     recreateTable(conn, "citations", "package_id integer, name string, citation string, canonical boolean")
 
 
@@ -106,19 +106,18 @@ def createMetadataTables(conn):
 #     License, Package, Imports, MD5sum, Depends, Version, NeedsCompilation, etc.
 def saveMetadata(pkgDescription, pkgWebscrape, conn):
     for rec in pkgWebscrape:
-        import pdb
-        conn.execute("insert or ignore into packages (name, repository) values (?,?)", 
-                     (rec, pkgWebscrape[rec]["repository"]))
+        conn.execute("insert or ignore into packages (name, repository, url) values (?,?,?)", 
+                     (rec, pkgWebscrape[rec]["repository"], pkgWebscrape[rec]["url"]))
         conn.execute("update packages set " + 
-                "url = ?, title=?, description=? where name=? and repository=?;", 
-                 (pkgWebscrape[rec]["url"], pkgWebscrape[rec]["title"], 
+                "title=?, description=? where name=? and repository=? and url=?;", 
+                 (pkgWebscrape[rec]["title"], 
                  pkgWebscrape[rec]["description"], 
-                  rec, pkgWebscrape[rec]["repository"]))
+                  rec, pkgWebscrape[rec]["repository"], pkgWebscrape[rec]["url"]))
         if rec in pkgDescription:
             conn.execute("update packages set " + 
-                "lastversion=? where name=? and repository=?", 
+                "lastversion=? where name=? and repository=? and url=?", 
                  (pkgDescription[rec].get("Version", [""])[0],
-                  rec, pkgWebscrape[rec]["repository"]))
+                  rec, pkgWebscrape[rec]["repository"], pkgWebscrape[rec]["url"]))
         conn.commit()
 
     

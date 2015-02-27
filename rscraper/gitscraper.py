@@ -98,6 +98,14 @@ class GitProjectInfo:
        self.url = url
    def username(self):
        return self.url.split("/")[4]
+   def cachefilename(self, path):
+       return getCachename(self.username(), self.name, path)
+   def projectDescription(self):
+       try:
+           with open(cachefilename("DESCRIPTION"), "r") as f:
+               return parseDESCRIPTION(f.read())
+       except Exception, e:
+           return {"error": str(e)}
 
 # Cache the git object between calls
 git = None
@@ -140,8 +148,14 @@ def saveProjectMetadata(projinf, projmeta, conn):
     conn.execute("delete from gitfiles where project_id=?", (projinf.project_id,))
     conn.commit()
 
+def readCachedFile(user, project_name, path):
+   cachename = getCachename(user, project_name, path)
+   with open(cachename, "r") as f:
+       return f.read()
+
 def queryFile(repo, projinf, path)
    error = ""
+   cachename = ""
    try:
        content = repo.get_contents("/" + urllib.quote(path)).decoded_content
        cachename = getCachename(repo.owner.login, repo.name, path)
@@ -153,7 +167,7 @@ def queryFile(repo, projinf, path)
    except Exception, e:
        error = str(e)[0:100]
        print "    ERROR reading ", path, projinf.username(), projinf.name, error
-   return {"language": language, "imports": imports, "error": error }
+   return {"language": language, "imports": imports, "error": error, "cache": cache }
 
 def saveFileImportInfo(projinf, fileinf, leaf, conn, filenum)
    for imp in fileinf["imports"]:
@@ -176,7 +190,7 @@ def populateProjectMetadata(projinf, conn, git):
            if hasDependencyInfo(leaf.path):
                print "    file ", leaf.path
                fileinf = queryFile(projmeta["repo"], projinf, leaf.path) 
-               safeFileInfo(projinf, fileinf, leaf, conn, filenum)
+               saveFileImportInfo(projinf, fileinf, leaf, conn, filenum)
                filenum += 1
    except Exception, e:
        error = str(e)[0:100]
