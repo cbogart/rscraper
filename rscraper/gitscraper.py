@@ -1,8 +1,10 @@
 import csv
+import traceback
+import sys
 import time
 import datetime
 # you need easy_install PyGithub or pip install PyGithub for this
-from github import Github
+from github import Github, UnknownObjectException
 import os
 import random
 import urllib
@@ -21,7 +23,7 @@ def downloadListing(listingCache, style):
             print "https://api.github.com/search/repositories?q=created:%3E2015-02-13%20language:R"
         elif style == "ghtorrent":
             print "query ghtorrent site here"
-        print "write to ", listingCache" 
+        print "write to ", listingCache 
 
 def importGhtorrentProjectCsv(fname, conn):
         """Repopulate from scratch the projects table
@@ -96,6 +98,8 @@ class GitProjectInfo:
        self.name = name
        self.project_id = project_id
        self.url = url
+   def __str__(self):
+       return self.username() + "/" + self.name
    def username(self):
        return self.url.split("/")[4]
    def cachefilename(self, path):
@@ -109,9 +113,9 @@ class GitProjectInfo:
 
 # Cache the git object between calls
 git = None
-def queryRandomProject(credentials):
+def queryRandomProject(conn, credentials):
    global git
-   projinf = getRandomProject()
+   projinf = getRandomProject(conn)
    if (git is None):
        git = Github(credentials["username"], credentials["password"])
    populateProjectMetadata(projinf, conn, git)
@@ -124,7 +128,7 @@ def getRandomProject(conn):
        print "NO random project could be chosen -- none match the criterion."
        return
    randomrow = random.choice(rows)
-   return GitProjectInfo(row['gitprojects.name'], row['gitprojects.id'], row['gitprojects.url'])
+   return GitProjectInfo(randomrow['gitprojects.name'], randomrow['gitprojects.id'], randomrow['gitprojects.url'])
 
 def throttleGitAccess(git):
    if (git.rate_limiting[0] < 5):
@@ -153,9 +157,11 @@ def readCachedFile(user, project_name, path):
    with open(cachename, "r") as f:
        return f.read()
 
-def queryFile(repo, projinf, path)
+def queryFile(repo, projinf, path):
    error = ""
    cachename = ""
+   language = ""
+   imports = []
    try:
        content = repo.get_contents("/" + urllib.quote(path)).decoded_content
        cachename = getCachename(repo.owner.login, repo.name, path)
@@ -164,41 +170,53 @@ def queryFile(repo, projinf, path)
        with open(cachename, "w") as f:
            f.write(content)
        (language, imports) = analyzeImports(cachename)
+   except UnknownObjectException, e:
+       error = str(e.status) + ": " + e.data["message"]
+       print "    ERROR reading ", path, projinf.username(), projinf.name, error
    except Exception, e:
        error = str(e)[0:100]
        print "    ERROR reading ", path, projinf.username(), projinf.name, error
-   return {"language": language, "imports": imports, "error": error, "cache": cache }
+       print traceback.format_exc()
+   return {"language": language, "imports": imports, "error": error, "cache": cachename }
 
-def saveFileImportInfo(projinf, fileinf, leaf, conn, filenum)
+def saveFileImportInfo(projinf, fileinf, leaf, conn, filenum):
    for imp in fileinf["imports"]:
        conn.execute(insertImportsSQL, (filenum, projinf.project_id, imp, int(time.time())))
    conn.execute(insertFilesSQL,
-       (filenum, projinf.project_id, fileinf["path"], leaf.size, None, retrieved, "", int(time.time()), fileinf["error"]))
+       (filenum, projinf.project_id, leaf.path, leaf.size, None, 1 if fileinf["error"] == "" else 0, 
+        "", int(time.time()), fileinf["error"]))
    
 def updateProjectScanStatus(projinf, error, conn):
    conn.execute("update gitprojects set cb_last_scan=?, error=? where id=?",
        (int(time.time()), error, projinf.project_id))
+   conn.commit()
 
 def populateProjectMetadata(projinf, conn, git):
    throttleGitAccess(git)
+   print "Scanning ", str(projinf)
    error = ""
    try:
        projmeta = getProjectMetadata(projinf, git)
        saveProjectMetadata(projinf, projmeta, conn)
        filenum = 1
-       for leaf in tree.tree:
+       for leaf in projmeta["tree"].tree:
            if hasDependencyInfo(leaf.path):
                print "    file ", leaf.path
                fileinf = queryFile(projmeta["repo"], projinf, leaf.path) 
                saveFileImportInfo(projinf, fileinf, leaf, conn, filenum)
                filenum += 1
+   except UnknownObjectException, e:
+       error = str(e.status) + ": " + e.data["message"]
+       print "    ERROR reading project ", projinf.username(), projinf.name, error
    except Exception, e:
        error = str(e)[0:100]
        print "    ERROR reading project ", projinf.username(), projinf.name, error
+       print traceback.format_exc()
    finally:
        updateProjectScanStatus(projinf, error, conn)
    
 
 def getCachename(user, repo, path):
        return "/".join(["cache",user, repo, path])
+
 

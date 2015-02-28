@@ -1,9 +1,11 @@
 import json
-from bs4 import BeautifulSoup
+import re
 import sqlite3
+import time
 import urllib2
 import urllib
-import time
+from analyzeDeps import parseDESCRIPTION
+from bs4 import BeautifulSoup
 
 def unquote(x):
     if (x.startswith('"') and x.endswith('"')):
@@ -11,18 +13,18 @@ def unquote(x):
     else:
         return x
 
-def do_or_error(f):
+def do_or_error(f, msg=None):
     try:
         return f()
     except Exception, e:
-        return str(e)[0:50]
+        return msg or str(e)[0:50]
 
-def getBioconductorWebscrape():
+def getBioconductorWebscrape(limit = 99999):
     categories = {}
 
     index = BeautifulSoup(urllib2.urlopen("http://www.bioconductor.org/packages/release/bioc/").read())
     packages = index.find("div", class_="do_not_rebase").find_all("a")
-    for p in packages:
+    for p in packages[:limit]:
         url = p.get("href")
         name = p.get_text()
         fullurl = "http://www.bioconductor.org/packages/release/bioc/" + url
@@ -30,7 +32,7 @@ def getBioconductorWebscrape():
         views = detail.find("td", text="biocViews").find_parent().find_all("a")
         viewlist = [v.get_text() for v in views]
         #citation = do_or_error(lambda: detail.find("div", id="bioc_citation").get_text())
-        citation = do_or_error(lambda: scrapeCitationBioc(name))
+        citation = do_or_error(lambda: scrapeCitationBioc(name), msg="")
         titleparent = do_or_error(lambda: detail.find("h1").find_parent())
         title = do_or_error(lambda: titleparent.find("h2").get_text())
         description = do_or_error(lambda: titleparent.find_all("p")[1].get_text())
@@ -46,20 +48,20 @@ def scrapeCitationBioc(name):
     return citepage.get_text()
 
 def scrapeCitationCran(name):
-    citeurl = "http://cran.r-project.org/packages/release/bioc/citations/" + urllib.quote(name) + "/citation.html"
+    citeurl = "http://cran.r-project.org/web/packages/" + urllib.quote(name) + "/citation.html"
     print citeurl
     citepage = BeautifulSoup(urllib2.urlopen(citeurl).read())
-    return citepage.get_text()
+    return citepage.find("blockquote").find("p").get_text().replace("\n","").strip()
 
-def getCranWebscrape():
+def getCranWebscrape(limit=9999999):
     categories = {}
     
     index = BeautifulSoup(urllib2.urlopen("http://cran.r-project.org/web/packages/available_packages_by_name.html").read())
     packages = index.find("table").find_all("a")
-    for p in packages:
+    for p in packages[:limit]:
         url = p.get("href")
         name = p.get_text()
-        title = do_or_error(lambda: p.find_parent().find_parent().find_all("td")[2].get_text())
+        title = do_or_error(lambda: p.find_parent().find_parent().find_all("td")[-1].get_text())
         fullurl = "http://cran.r-project.org/web/packages/" + name + "/index.html"
         detail = BeautifulSoup(urllib2.urlopen(fullurl).read())
         try:
@@ -75,13 +77,11 @@ def getCranWebscrape():
     return categories
 
 def recreateTable(conn, table, flds):
-    print "----", table
     try:
         conn.execute("drop table %(tb)s;" % {"tb":table} )
     except Exception, e:
         print "ERROR", str(e)
     exc = "create table %(tb)s ( %(flds)s );" % {"tb":table, "flds": flds}
-    print exc
     conn.execute(exc)
     conn.commit()
         
@@ -95,15 +95,6 @@ def createMetadataTables(conn):
     recreateTable(conn, "citations", "package_id integer, name string, citation string, canonical boolean")
 
 
-# Packages table: unique for: package URL.  There may be multiple sites for a project, e.g. a CRAN and 15 github projects with that name.
-#  That's OK.  The "best" github is one without a fork, and then I guess just pick the most-forked one.
-#  Cran beats Bioc beats Github.  Github many-forks beats github no-forks beats github forked, when exporting canonicals, but they're all listed
-
-#
-#  pkgWebscrape has for each package:
-#     citation, title, description, views
-#  pkgDescription has
-#     License, Package, Imports, MD5sum, Depends, Version, NeedsCompilation, etc.
 def saveMetadata(pkgDescription, pkgWebscrape, conn):
     for rec in pkgWebscrape:
         conn.execute("insert or ignore into packages (name, repository, url) values (?,?,?)", 
@@ -120,4 +111,12 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
                   rec, pkgWebscrape[rec]["repository"], pkgWebscrape[rec]["url"]))
         conn.commit()
 
-    
+def getCranDescription():
+    directory = "http://cran.r-project.org/src/contrib/PACKAGES"
+    txt = urllib.urlopen(directory).readlines()
+    return parseDESCRIPTION(txt)
+
+def getBioconductorDescription():
+    directory = "http://bioconductor.org/packages/3.0/bioc/src/contrib/PACKAGES"
+    txt = urllib.urlopen(directory).readlines()
+    return parseDESCRIPTION(txt)

@@ -89,8 +89,8 @@ def parseDESCRIPTION(txt):
 
 def analyzeImportsManyDescriptions(txt):
     deps = parseDESCRIPTION(txt)
-    for p in db:
-        deps[p] = list(set([]).union(db[p].get("Imports",set([]))).union(db[p].get("Depends", set([]))) - set(["R"]))
+    for p in deps:
+        deps[p] = list(set([]).union(deps[p].get("Imports",set([]))).union(deps[p].get("Depends", set([]))) - set(["R"]))
     return deps
 
 def calcDependencyClosure(thesedepslist, depdictpkg2list):
