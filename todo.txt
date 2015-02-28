@@ -1,0 +1,45 @@
+
+Some DESCRIPTION files may have been missed if they had DESCRIPTION as a file not in the root,
+and if the root did not have a subfolder named pkg.  So, find a way to search for these.
+
+THESE ARE THE POSSIBLE ONES:
+   select * from gitprojects where id in (select distinct(project_id) from gitfiles where project_id not in (select distinct(project_id) from gitfiles where path like "%DESCRIPTION") and path like "%/%");
+   (AND, checked today or before, i.e. before 1425146238, things might be missing)
+
+Operationalizations of "project" that are possible:
+
+ - just use 'in the same file'
+ - use 'in the same file' for .R's, but exclude imports whose name matches 
+     the nearest parent directory's DESCRIPTION package name
+ - use DESCRIPTION contents and exclude .R/.r in the same (or sub) directories
+
+ - alternate option
+    1. For top level or subfolders with no DESCRIPTION: 
+        - use all files together
+    2. For folder with DESCRIPTION (and all its subfolders)
+        - just use the DESCRIPTION file
+ * best option (for the usage and set-of-imports data)
+    1. For top level or subfolders with no DESCRIPTION: 
+        - use each .r or .R individually
+    2. For folder with DESCRIPTION (and all its subfolders)
+        - just use the DESCRIPTION file
+
+
+Code to do this:
+  - list of packages genererated from cran, then bioconductor, then distinct github names, then
+             anything referred to in imports.
+  - Fill in its *package* information from cran/bioc scrapey, and anything I can get from github
+
+  - For each package, heuristic generates a mapping file from package to canonical github projects
+      -This is "other interesting information about the package"
+        - have a manual override file, and use that as ground truth if exists
+        - scan description and citation for github links and prefer those
+	- prefer non-fork over fork
+        - prefer cran, bioconductor usernames over others
+        - prefer username that's close to cran authorname over others
+
+
+
+Proper use of "imports" etc:
+   - IMports and Depends are the right things
+   - Suggests and Enhances are stuff that would be good to add to TaskViews as auxiliary information to contrast

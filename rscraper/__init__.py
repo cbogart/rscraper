@@ -6,4 +6,4 @@ from extractGitPackages import extractGitWebscrape, extractGitDescription
 from getRepoMetadata import getBioconductorWebscrape, getCranWebscrape
 from getRepoMetadata import createMetadataTables, saveMetadata
 from getRepoMetadata import getBioconductorDescription, getCranDescription
-from gitscraper import queryRandomProject
+from gitscraper import queryRandomProject, queryParticularProject

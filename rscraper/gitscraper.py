@@ -1,4 +1,5 @@
 import csv
+import datetime
 import traceback
 import sys
 import time
@@ -78,7 +79,7 @@ def createGitTables(conn):
 #reset = 1
 #
 def hasDependencyInfo(path):
-   if path == "DESCRIPTION": return True
+   if path.split("/")[-1] == "DESCRIPTION": return True
    if path.endswith(".R"): return True
    if path.endswith(".r"): return True
    return False
@@ -120,6 +121,29 @@ def queryRandomProject(conn, credentials):
        git = Github(credentials["username"], credentials["password"])
    populateProjectMetadata(projinf, conn, git)
 
+def queryParticularProject(conn, credentials, user_slash_name):
+   global git
+   cur = conn.cursor()
+   cur.execute('select * from gitprojects where url like "%' + user_slash_name + '%";')
+   rows = cur.fetchall()
+   if (len(rows) != 1):
+       print "Found", len(rows), ", not 1, projects matching ", user_slash_name
+       print "Aborting."
+       return
+   r1 = rows[0]
+   id = r1["gitprojects.id"]
+   print "Updating project", id
+   url = r1["gitprojects.url"]
+   name = r1["gitprojects.name"]
+   conn.execute("update gitprojects set cb_last_scan = null, error='' where id=?;", (id,));
+   conn.execute("delete from gitfiles where project_id = ?", (id,))
+   conn.execute("delete from gitimports where project_id = ?", (id,))
+   conn.commit()
+   projinf = GitProjectInfo(name, id, url)
+   if (git is None):
+       git = Github(credentials["username"], credentials["password"])
+   populateProjectMetadata(projinf, conn, git)
+
 def getRandomProject(conn):
    cur = conn.cursor()
    cur.execute("select * from gitprojects where cb_last_scan is NULL and (error is null or error = '') and deleted = '0'");
@@ -127,6 +151,8 @@ def getRandomProject(conn):
    if len(rows) == 0:
        print "NO random project could be chosen -- none match the criterion."
        return
+   if (len(rows) % 50 == 0):
+       print "\t", len(rows), " projects remain at", datetime.datetime.now().isoformat()
    randomrow = random.choice(rows)
    return GitProjectInfo(randomrow['gitprojects.name'], randomrow['gitprojects.id'], randomrow['gitprojects.url'])
 
@@ -157,14 +183,17 @@ def readCachedFile(user, project_name, path):
    with open(cachename, "r") as f:
        return f.read()
 
-def queryFile(repo, projinf, path):
+def queryFile(repo, projinf, path, git):
    error = ""
    cachename = ""
    language = ""
    imports = []
    try:
+       throttleGitAccess(git)
        content = repo.get_contents("/" + urllib.quote(path)).decoded_content
        cachename = getCachename(repo.owner.login, repo.name, path)
+       if (not path.endswith("DESCRIPTION")):
+           cachename = "/tmp/temp.r"
        if not os.path.exists(os.path.dirname(cachename)):
            os.makedirs(os.path.dirname(cachename))
        with open(cachename, "w") as f:
@@ -202,8 +231,9 @@ def populateProjectMetadata(projinf, conn, git):
        for leaf in projmeta["tree"].tree:
            if hasDependencyInfo(leaf.path):
                print "    file ", leaf.path
-               fileinf = queryFile(projmeta["repo"], projinf, leaf.path) 
+               fileinf = queryFile(projmeta["repo"], projinf, leaf.path, git) 
                saveFileImportInfo(projinf, fileinf, leaf, conn, filenum)
+               if (fileinf["error"] != ""): error = fileinf["error"]
                filenum += 1
    except UnknownObjectException, e:
        error = str(e.status) + ": " + e.data["message"]

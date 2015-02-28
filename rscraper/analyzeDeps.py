@@ -82,7 +82,7 @@ def parseDESCRIPTION(txt):
         try:
             db[thissection["Package"][0]] = thissection
         except:
-            pdb.set_trace()
+            print "coudn't parse Package name in description"
             print thissection
 
     return db
