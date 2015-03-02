@@ -12,7 +12,7 @@ def priority(row):
 def extractGitDescription(conn):
     pkgs = conn.execute("select gitprojects.*, group_concat(distinct(gitimports.package_name)) myimports from gitprojects " + \
             "left join gitimports on gitimports.project_id=gitprojects.id where gitprojects.id in " + \
-            "(select project_id from gitfiles where path='DESCRIPTION') group by gitprojects.id;")
+            "(select project_id from gitfiles where path='DESCRIPTION' or path = 'pkg/DESCRIPTION') group by gitprojects.id;")
     desc = {}
     for p in pkgs:
         name = p["gitprojects.name"]

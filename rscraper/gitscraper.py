@@ -212,7 +212,7 @@ def queryFile(repo, projinf, path, git):
 
 def saveFileImportInfo(projinf, fileinf, leaf, conn, filenum):
    for imp in fileinf["imports"]:
-       conn.execute(insertImportsSQL, (filenum, projinf.project_id, imp, int(time.time())))
+       conn.execute(insertImportsSQL, (filenum, projinf.project_id, imp.strip(), int(time.time())))
    conn.execute(insertFilesSQL,
        (filenum, projinf.project_id, leaf.path, leaf.size, None, 1 if fileinf["error"] == "" else 0, 
         "", int(time.time()), fileinf["error"]))
