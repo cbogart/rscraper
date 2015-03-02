@@ -1,4 +1,5 @@
 import json
+import pdb
 import re
 import sqlite3
 import time
@@ -97,13 +98,23 @@ def createMetadataTables(conn):
 
 def saveMetadata(pkgDescription, pkgWebscrape, conn):
     for rec in pkgWebscrape:
+
+        url = pkgDescription[rec].get("URL", [""])
+        if not isinstance(url, str):  url = url[0]
+        if url == "": url = pkgWebscrape[rec].get("url", "")
+        if "/api.github" in url:
+            url = "http://github.com/" + pkgWebscrape[rec]["user"] + "/" + rec
+
+        #print url, pkgDescription[rec].get("URL", "?"), pkgWebscrape.get("URL", "")
+        #pdb.set_trace()
+
         conn.execute("insert or ignore into packages (name, repository, url) values (?,?,?)", 
-                     (rec, pkgWebscrape[rec]["repository"], pkgWebscrape[rec]["url"]))
+                     (rec, pkgWebscrape[rec]["repository"], url))
         conn.execute("update packages set " + 
                 "title=?, description=? where name=? and repository=? and url=?;", 
                  (pkgWebscrape[rec]["title"], 
                  pkgWebscrape[rec]["description"], 
-                  rec, pkgWebscrape[rec]["repository"], pkgWebscrape[rec]["url"]))
+                  rec, pkgWebscrape[rec]["repository"], url))
         if rec in pkgDescription:
             try:
                 version = pkgDescription[rec].get("Version", [""])
@@ -112,9 +123,8 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
                 else: version = version[0]
                 conn.execute("update packages set " + 
                     "lastversion=? where name=? and repository=? and url=?", 
-                     (version, rec, pkgWebscrape[rec]["repository"], pkgWebscrape[rec]["url"]))
+                     (version, rec, pkgWebscrape[rec]["repository"],url))
             except Exception, e:
-                import pdb
                 pdb.set_trace()
                 print "Could not write package version information"
         conn.commit()
