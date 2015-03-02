@@ -13,20 +13,26 @@ def jmemo(item, filen):
             f.write(json.dumps(i, indent=4))
             return i
 
-def do_weekly():
-        bws = jmemo(lambda:getBioconductorWebscrape(), "biowebtest1")
-        cws = jmemo(lambda:getCranWebscrape(), "cranwebtest3")
-        biod = jmemo(lambda:getBioconductorDescription(), "biodesctest2")
-        crand = jmemo(lambda:getCranDescription(), "crandesctest4")
+def createCranBiocGitTables():
+        # Populate in order of least to highest priority:
+        # i.e. if we have a project both in Github and CRAN,
+        # the cran information takes priority, so write it in
+        # last overriding whatever we found on github.
 
         conn = getConnection("repoScrape.db")
         createMetadataTables(conn)
-        saveMetadata(crand, cws, conn)
-        saveMetadata(biod, bws, conn)
 
         gws = extractGitWebscrape(conn)
         gd = extractGitDescription(conn)
         saveMetadata(gd,gws,conn)
 
+        bws = jmemo(lambda:getBioconductorWebscrape(), "biowebtest1")
+        biod = jmemo(lambda:getBioconductorDescription(), "biodesctest2")
+        saveMetadata(biod, bws, conn)
+
+        cws = jmemo(lambda:getCranWebscrape(), "cranwebtest3")
+        crand = jmemo(lambda:getCranDescription(), "crandesctest4")
+        saveMetadata(crand, cws, conn)
+
 if __name__ == '__main__':
-    do_weekly()
+    createCranBiocGitTables()

@@ -92,7 +92,7 @@ def createMetadataTables(conn):
     recreateTable(conn, "packages", "package_id integer primary key, name string, repository string, " \
                               "url string, " +\
                               "title string, description string, lastversion string, " \
-                              "unique(name, repository, url)  on conflict replace")
+                              "unique(name)  on conflict replace")
     recreateTable(conn, "citations", "package_id integer, name string, citation string, canonical boolean")
 
 
@@ -108,13 +108,15 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
         #print url, pkgDescription[rec].get("URL", "?"), pkgWebscrape.get("URL", "")
         #pdb.set_trace()
 
-        conn.execute("insert or ignore into packages (name, repository, url) values (?,?,?)", 
-                     (rec, pkgWebscrape[rec]["repository"], url))
+        # Create a unique record if does not exist
+        conn.execute("insert or ignore into packages (name) values (?)", (rec,))
+
         conn.execute("update packages set " + 
-                "title=?, description=? where name=? and repository=? and url=?;", 
+                "title=?, description=?, repository=?, url=? where name=?;",
                  (pkgWebscrape[rec]["title"], 
                  pkgWebscrape[rec]["description"], 
-                  rec, pkgWebscrape[rec]["repository"], url))
+                  pkgWebscrape[rec]["repository"], url,
+                  rec))
         if rec in pkgDescription:
             try:
                 version = pkgDescription[rec].get("Version", [""])
@@ -122,8 +124,8 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
                 elif len(version) == 0: version = ""
                 else: version = version[0]
                 conn.execute("update packages set " + 
-                    "lastversion=? where name=? and repository=? and url=?", 
-                     (version, rec, pkgWebscrape[rec]["repository"],url))
+                    "lastversion=? where name=?;",
+                     (version, rec))
             except Exception, e:
                 pdb.set_trace()
                 print "Could not write package version information"
