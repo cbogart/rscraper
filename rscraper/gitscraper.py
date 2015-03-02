@@ -14,7 +14,7 @@ import sys
 import sqlite3
 import pdb
 import json
-from analyzeDeps import analyzeImports
+from analyzeDeps import analyzeImports, parseDESCRIPTION
 
 # Grab whatever online stuff gives a basic package list/minimal metadata and put it in this filename
 # Git:  search list of (new?) packages, OR use ghtorrent.
@@ -107,9 +107,10 @@ class GitProjectInfo:
        return getCachename(self.username(), self.name, path)
    def projectDescription(self):
        try:
-           with open(cachefilename("DESCRIPTION"), "r") as f:
-               return parseDESCRIPTION(f.read())
+           with open(self.cachefilename("DESCRIPTION"), "r") as f:
+               return parseDESCRIPTION(f.readlines())
        except Exception, e:
+           print "Error getting project description: ", self.cachefilename("DESCRIPTION"), str(e)
            return {"error": str(e)}
 
 # Cache the git object between calls
@@ -152,12 +153,12 @@ def getRandomProject(conn):
        print "NO random project could be chosen -- none match the criterion."
        return
    if (len(rows) % 50 == 0):
-       print "\t", len(rows), " projects remain at", datetime.datetime.now().isoformat()
+       print "\t", len(rows), " projects remain at", datetime.datetime.now().isoformat(), "*********   ************   **********"
    randomrow = random.choice(rows)
    return GitProjectInfo(randomrow['gitprojects.name'], randomrow['gitprojects.id'], randomrow['gitprojects.url'])
 
 def throttleGitAccess(git):
-   if (git.rate_limiting[0] < 5):
+   if (git.rate_limiting[0] < 75):
       waitseconds = git.rate_limiting_resettime - time.time()
       awaken_at = (datetime.datetime.now() + datetime.timedelta(seconds = waitseconds)).strftime("%H:%M")
       print "+---------------------------->"

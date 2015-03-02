@@ -105,10 +105,20 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
                  pkgWebscrape[rec]["description"], 
                   rec, pkgWebscrape[rec]["repository"], pkgWebscrape[rec]["url"]))
         if rec in pkgDescription:
-            conn.execute("update packages set " + 
-                "lastversion=? where name=? and repository=? and url=?", 
-                 (pkgDescription[rec].get("Version", [""])[0],
-                  rec, pkgWebscrape[rec]["repository"], pkgWebscrape[rec]["url"]))
+            try:
+                import pdb
+                pdb.set_trace()
+                version = pkgDescription[rec].get("Version", [""])
+                if isinstance(version, basestring): version = ""
+                elif len(version) == 0: version = ""
+                else: version = version[0]
+                conn.execute("update packages set " + 
+                    "lastversion=? where name=? and repository=? and url=?", 
+                     (version, rec, pkgWebscrape[rec]["repository"], pkgWebscrape[rec]["url"]))
+            except Exception, e:
+                import pdb
+                pdb.set_trace()
+                print "Could not write package version information"
         conn.commit()
 
 def getCranDescription():

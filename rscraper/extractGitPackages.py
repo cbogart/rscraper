@@ -1,3 +1,5 @@
+from gitscraper import GitProjectInfo
+import pdb
 
 # need Version
 def extractGitDescription(conn):
@@ -8,7 +10,7 @@ def extractGitDescription(conn):
     for p in pkgs:
         name = p["gitprojects.name"]
         prj = GitProjectInfo(name, p["gitprojects.id"], p["gitprojects.url"])
-        descinfo = prj.projectDescription()
+        descinfo = prj.projectDescription()[name]
         if "error" in descinfo:
             print "Couldn't read DESCRIPTION for git project ", name
             desc[name] = {
