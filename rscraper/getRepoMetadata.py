@@ -106,8 +106,6 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
                   rec, pkgWebscrape[rec]["repository"], pkgWebscrape[rec]["url"]))
         if rec in pkgDescription:
             try:
-                import pdb
-                pdb.set_trace()
                 version = pkgDescription[rec].get("Version", [""])
                 if isinstance(version, basestring): version = ""
                 elif len(version) == 0: version = ""

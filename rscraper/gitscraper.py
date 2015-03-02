@@ -108,10 +108,11 @@ class GitProjectInfo:
    def projectDescription(self):
        try:
            with open(self.cachefilename("DESCRIPTION"), "r") as f:
-               return parseDESCRIPTION(f.readlines())
+               desc = parseDESCRIPTION(f.readlines())
+               return desc[desc.keys()[0]]
        except Exception, e:
            print "Error getting project description: ", self.cachefilename("DESCRIPTION"), str(e)
-           return {"error": str(e)}
+           return { "error": str(e)}
 
 # Cache the git object between calls
 git = None

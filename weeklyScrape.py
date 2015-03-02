@@ -1,22 +1,32 @@
+import unittest
+from rscraper import *
 import rscraper
+import json
 
+def jmemo(item, filen):
+    try:
+        with open(filen + ".json", "r") as f:
+            return json.loads(f.read())
+    except:
+        with open(filen + ".json", "w") as f:
+            i = item()
+            f.write(json.dumps(i, indent=4))
+            return i
 
-conn = getConnection("test.db")
+def do_weekly():
+        bws = jmemo(lambda:getBioconductorWebscrape(), "biowebtest1")
+        cws = jmemo(lambda:getCranWebscrape(), "cranwebtest3")
+        biod = jmemo(lambda:getBioconductorDescription(), "biodesctest2")
+        crand = jmemo(lambda:getCranDescription(), "crandesctest4")
 
-#update the listing of git projects
-#optionally, void git projects that have been touched, and not updated here recently
+        conn = getConnection("repoScrape.db")
+        createMetadataTables(conn)
+        saveMetadata(crand, cws, conn)
+        saveMetadata(biod, bws, conn)
 
-# Save information about the categorizations that the repos use
-createMetadataTables(conn)
-biometadata = getBioconductorMetadata()
-biopackages = getBioconductorPackageInfo()
-cranpackages = getCranPackageInfo()
-cranmetadata = getCranMetadata()
-saveMetadata(biopackages, biometadata, conn)
-saveMetadata(cranpackages, cranmetadata, conn)
+        gws = extractGitWebscrape(conn)
+        gd = extractGitDescription(conn)
+        saveMetadata(gd,gws,conn)
 
-# Transfer specialized format of Git tables to 
-gitpackages = extractGitPackageInfo()
-gitmetadata = extractGitMetadata()
-saveMetadata(gitpackages, gitmetadata, conn)
-
+if __name__ == '__main__':
+    do_weekly()

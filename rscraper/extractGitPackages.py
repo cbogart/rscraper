@@ -10,7 +10,7 @@ def extractGitDescription(conn):
     for p in pkgs:
         name = p["gitprojects.name"]
         prj = GitProjectInfo(name, p["gitprojects.id"], p["gitprojects.url"])
-        descinfo = prj.projectDescription()[name]
+        descinfo = prj.projectDescription()
         if "error" in descinfo:
             print "Couldn't read DESCRIPTION for git project ", name
             desc[name] = {
