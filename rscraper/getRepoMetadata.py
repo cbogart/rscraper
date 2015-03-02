@@ -89,6 +89,7 @@ def recreateTable(conn, table, flds):
 def createMetadataTables(conn):
     recreateTable(conn, "tags", "package_id integer, tag string")
     recreateTable(conn, "ties", "package_id integer, tied_id integer, relationship string")
+    recreateTable(conn, "staticdeps", "package_name string, depends_on string")
     recreateTable(conn, "packages", "package_id integer primary key, name string, repository string, " \
                               "url string, " +\
                               "title string, description string, lastversion string, " \
@@ -129,6 +130,11 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
             except Exception, e:
                 pdb.set_trace()
                 print "Could not write package version information"
+            # Now save static dependencies
+            imports = list(set(pkgDescription[rec].get("Imports", []) + 
+                               pkgDescription[rec].get("Requires", [])))
+            conn.executemany("insert into staticdeps (package_name, depends_on) values (?,?);",
+                [(rec, imp) for imp in imports])
         conn.commit()
 
 def getCranDescription():
