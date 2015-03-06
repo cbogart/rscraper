@@ -140,8 +140,9 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
         if "views" in pkgWebscrape[rec] and len(pkgWebscrape[rec]["views"]) > 0:
             conn.execute("delete from tags where package_name = ? " + \
                     " and tagtype ='taskview';", (rec,))
+            repo = pkgWebscrape[rec]["repository"]
             conn.executemany("insert into tags (package_name, tag, tagtype) values (?,?,'taskview');",
-                [(rec, taskview) for taskview in pkgWebscrape[rec]["views"]])
+                [(rec, repo + "/" + taskview) for taskview in pkgWebscrape[rec]["views"]])
 
         conn.commit()
 
