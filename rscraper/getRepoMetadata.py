@@ -87,8 +87,8 @@ def recreateTable(conn, table, flds):
     conn.commit()
         
 def createMetadataTables(conn):
-    recreateTable(conn, "tags", "package_id integer, tag string")
-    recreateTable(conn, "ties", "package_id integer, tied_id integer, relationship string")
+    recreateTable(conn, "tags", "package_name string, tag string, tagtype string")
+    recreateTable(conn, "ties", "package_name string, tied string, relationship string")
     recreateTable(conn, "staticdeps", "package_name string, depends_on string")
     recreateTable(conn, "packages", "package_id integer primary key, name string, repository string, " \
                               "url string, " +\
@@ -135,7 +135,16 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
                                pkgDescription[rec].get("Requires", [])))
             conn.executemany("insert into staticdeps (package_name, depends_on) values (?,?);",
                 [(rec, imp) for imp in imports])
+
+
+        if "views" in pkgWebscrape[rec] and len(pkgWebscrape[rec]["views"]) > 0:
+            conn.execute("delete from tags where package_name = ? " + \
+                    " and tagtype ='taskview';", (rec,))
+            conn.executemany("insert into tags (package_name, tag, tagtype) values (?,?,'taskview');",
+                [(rec, taskview) for taskview in pkgWebscrape[rec]["views"]])
+
         conn.commit()
+
 
 def getCranDescription():
     directory = "http://cran.r-project.org/src/contrib/PACKAGES"
