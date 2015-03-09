@@ -55,6 +55,7 @@ def importGhtorrentProjectCsv(fname, conn):
                     conn.commit()    
         conn.commit()    
         conn.execute("alter table gitprojects add column cb_last_scan;");
+        conn.execute("alter table gitprojects add column owner;");
         conn.execute("alter table gitprojects add column pushed_at;");
         conn.execute("alter table gitprojects add column forks_count;");
         conn.execute("alter table gitprojects add column stargazers_count;");
@@ -173,9 +174,20 @@ def getProjectMetadata(projinf, git):
     tree = repo.get_git_tree("master", recursive=True)
     return {"repo": repo, "tree": tree}
 
+#
+#  Note: watchers_count is obsolete, per https://developer.github.com/changes/2012-9-5-watcher-api/
+#   Instead, we should look at subscribers_count
+#    example: 
+#      https://api.github.com/repos/hadley/adv-r
+#
+#  However, I'm currently not using watchers_count, but stargazers_count instead FWIW,
+#  and the backlog of data collected therefore has watchers, so I am 
+#  not going to change it for now.
+#    cb 3/9/2015
+#
 def saveProjectMetadata(projinf, projmeta, conn):
-    conn.execute("update gitprojects set pushed_at=?, forks_count=?, watchers_count=?,stargazers_count=?,network_count=?  where id=?", \
-               (str(projmeta["repo"].pushed_at), projmeta["repo"].forks_count, projmeta["repo"].watchers_count, \
+    conn.execute("update gitprojects set owner=?, pushed_at=?, forks_count=?, watchers_count=?,stargazers_count=?,network_count=?  where id=?", \
+               (projinf.username(), str(projmeta["repo"].pushed_at), projmeta["repo"].forks_count, projmeta["repo"].watchers_count, \
                projmeta["repo"].stargazers_count, projmeta["repo"].network_count, projinf.project_id))
     conn.execute("delete from gitfiles where project_id=?", (projinf.project_id,))
     conn.commit()
