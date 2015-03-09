@@ -96,6 +96,7 @@ def createMetadataTables(conn):
                               "unique(name)  on conflict replace")
     recreateTable(conn, "citations", "package_id integer, name string, citation string, canonical boolean")
 
+legalimport = re.compile("[a-zA-Z_0-9\._]+")
 
 def saveMetadata(pkgDescription, pkgWebscrape, conn):
     for rec in pkgWebscrape:
@@ -133,6 +134,7 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
             # Now save static dependencies
             imports = list(set(pkgDescription[rec].get("Imports", []) + 
                                pkgDescription[rec].get("Requires", [])))
+            imports = [i for i in imports if legalimport.match(i)]
             conn.executemany("insert into staticdeps (package_name, depends_on) values (?,?);",
                 [(rec, imp) for imp in imports])
 
