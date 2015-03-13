@@ -7,3 +7,4 @@ from getRepoMetadata import getBioconductorWebscrape, getCranWebscrape
 from getRepoMetadata import createMetadataTables, saveMetadata
 from getRepoMetadata import getBioconductorDescription, getCranDescription
 from gitscraper import queryRandomProject, queryParticularProject
+from crossref import fillInDois

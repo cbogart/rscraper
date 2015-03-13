@@ -3,6 +3,7 @@ from rscraper import *
 import rscraper
 import json
 
+
 def jmemo(item, filen):
     try:
         with open(filen + ".json", "r") as f:
@@ -33,6 +34,10 @@ def createCranBiocGitTables():
         cws = jmemo(lambda:getCranWebscrape(), "cranwebtest3")
         crand = jmemo(lambda:getCranDescription(), "crandesctest4")
         saveMetadata(crand, cws, conn)
+        fillInDois(conn)
 
 if __name__ == '__main__':
-    createCranBiocGitTables()
+    #createCranBiocGitTables()
+    conn = getConnection("repoScrape.db")
+    fillInDois(conn)
+   

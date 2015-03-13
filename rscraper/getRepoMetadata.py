@@ -73,6 +73,7 @@ def getCranWebscrape(limit=9999999):
         print name, fullurl, '/'.join(viewlist)
         description = do_or_error(lambda: detail.find("p").get_text())
         citation = do_or_error(lambda: scrapeCitationCran(name))
+        
         categories[name] = { "url": fullurl, "repository": "cran", "views": viewlist, "citation": citation, "title": title, "description": description }
 
     return categories
@@ -94,7 +95,8 @@ def createMetadataTables(conn):
                               "url string, " +\
                               "title string, description string, lastversion string, " \
                               "unique(name)  on conflict replace")
-    recreateTable(conn, "citations", "package_id integer, name string, citation string, canonical boolean")
+    recreateTable(conn, "citations", "package_name string, citation string, doi string, " \
+                              "doi_confidence, doi_title string, canonical boolean")
 
 legalimport = re.compile("[a-zA-Z_0-9\._]+")
 
@@ -119,6 +121,10 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
                  pkgWebscrape[rec]["description"], 
                   pkgWebscrape[rec]["repository"], url,
                   rec))
+        if "citation" in pkgWebscrape[rec] and pkgWebscrape[rec]["citation"] != "HTTP Error 404: Not Found":
+            citations = [cite.strip() for cite in pkgWebscrape[rec]["citation"].split("\n\n") if cite.strip() != ""]
+            conn.executemany("insert into citations (package_name, citation, canonical) values (?,?,?)",
+                         [(rec, cite, True) for cite in citations])
         if rec in pkgDescription:
             try:
                 version = pkgDescription[rec].get("Version", [""])
