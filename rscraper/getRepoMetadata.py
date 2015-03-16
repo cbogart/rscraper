@@ -36,9 +36,10 @@ def getBioconductorWebscrape(limit = 99999):
         citation = do_or_error(lambda: scrapeCitationBioc(name), msg="")
         titleparent = do_or_error(lambda: detail.find("h1").find_parent())
         title = do_or_error(lambda: titleparent.find("h2").get_text())
+        authorlist = do_or_error(lambda: titleparent.find("p", text = re.compile(r'Author:.*')).get_text())
         description = do_or_error(lambda: titleparent.find_all("p")[1].get_text())
         print name, url, '/'.join(viewlist)
-        categories[name] = { "url": fullurl, "repository": "bioconductor", "views": viewlist, "citation": citation, "title": title, "description": description }
+        categories[name] = { "url": fullurl, "repository": "bioconductor", "authors": authorlist, "views": viewlist, "citation": citation, "title": title, "description": description }
 
     return categories
 
@@ -71,10 +72,14 @@ def getCranWebscrape(limit=9999999):
         except:
             viewlist = []
         print name, fullurl, '/'.join(viewlist)
+        try:
+            authorlist = detail.find("td", text="Author:").parent.find_all("td")[1].get_text()
+        except:
+            authorlist = ""
         description = do_or_error(lambda: detail.find("p").get_text())
         citation = do_or_error(lambda: scrapeCitationCran(name))
         
-        categories[name] = { "url": fullurl, "repository": "cran", "views": viewlist, "citation": citation, "title": title, "description": description }
+        categories[name] = { "url": fullurl, "repository": "cran", "authors": authorlist, "views": viewlist, "citation": citation, "title": title, "description": description }
 
     return categories
 
@@ -93,10 +98,10 @@ def createMetadataTables(conn):
     recreateTable(conn, "staticdeps", "package_name string, depends_on string")
     recreateTable(conn, "packages", "package_id integer primary key, name string, repository string, " \
                               "url string, " +\
-                              "title string, description string, lastversion string, " \
+                              "title string, description string, authors string, lastversion string, " \
                               "unique(name)  on conflict replace")
-    recreateTable(conn, "citations", "package_name string, citation string, doi string, " \
-                              "doi_confidence, doi_title string, canonical boolean")
+    #recreateTable(conn, "citations", "package_name string, citation string, doi string, " \
+    #                          "doi_confidence, doi_title string, canonical boolean")
 
 legalimport = re.compile("[a-zA-Z_0-9\._]+")
 
@@ -116,15 +121,21 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
         conn.execute("insert or ignore into packages (name) values (?)", (rec,))
 
         conn.execute("update packages set " + 
-                "title=?, description=?, repository=?, url=? where name=?;",
+                "title=?, description=?, authors=?, repository=?, url=? where name=?;",
                  (pkgWebscrape[rec]["title"], 
                  pkgWebscrape[rec]["description"], 
-                  pkgWebscrape[rec]["repository"], url,
-                  rec))
+                 pkgWebscrape[rec]["authors"] if "authors" in pkgWebscrape[rec] else "",
+                 pkgWebscrape[rec]["repository"], 
+                 url,
+                 rec))
+        
         if "citation" in pkgWebscrape[rec] and pkgWebscrape[rec]["citation"] != "HTTP Error 404: Not Found":
             citations = [cite.strip() for cite in pkgWebscrape[rec]["citation"].split("\n\n") if cite.strip() != ""]
-            conn.executemany("insert into citations (package_name, citation, canonical) values (?,?,?)",
-                         [(rec, cite, True) for cite in citations])
+            for cite in citations:
+                rows = conn.execute("select * from citations where package_name=? and citation=?;", (rec, cite))
+                if len(list(rows)) == 0:
+                    conn.execute("insert into citations (package_name, citation, canonical) values (?,?,?)", (rec, cite, True))
+
         if rec in pkgDescription:
             try:
                 version = pkgDescription[rec].get("Version", [""])

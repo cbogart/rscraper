@@ -1,19 +1,12 @@
 import csv
-import datetime
 import traceback
-import sys
 import time
-import datetime
 # you need easy_install PyGithub or pip install PyGithub for this
 from github import Github, UnknownObjectException
 import os
 import random
+import datetime
 import urllib
-import urllib2
-import sys
-import sqlite3
-import pdb
-import json
 from analyzeDeps import analyzeImports, parseDESCRIPTION
 
 # Grab whatever online stuff gives a basic package list/minimal metadata and put it in this filename
@@ -80,10 +73,10 @@ def createGitTables(conn):
 #reset = 1
 #
 def hasDependencyInfo(path):
-   if path.split("/")[-1] == "DESCRIPTION": return True
-   if path.endswith(".R"): return True
-   if path.endswith(".r"): return True
-   return False
+    if path.split("/")[-1] == "DESCRIPTION": return True
+    if path.endswith(".R"): return True
+    if path.endswith(".r"): return True
+    return False
 
 
 # Fixed sql statements
@@ -96,24 +89,24 @@ insertImportsSQL = "insert into gitimports (" + importsColumns + ") values (" +\
                "?,?,?,?);"
 
 class GitProjectInfo:
-   def __init__(self, name, project_id, url):
-       self.name = name
-       self.project_id = project_id
-       self.url = url
-   def __str__(self):
-       return self.username() + "/" + self.name
-   def username(self):
-       return self.url.split("/")[4]
-   def cachefilename(self, path):
-       return getCachename(self.username(), self.name, path)
-   def projectDescription(self):
-       try:
-           with open(self.cachefilename("DESCRIPTION"), "r") as f:
-               desc = parseDESCRIPTION(f.readlines())
-               return desc[desc.keys()[0]]
-       except Exception, e:
-           print "Error getting project description: ", self.cachefilename("DESCRIPTION"), str(e)
-           return { "error": str(e)}
+    def __init__(self, name, project_id, url):
+        self.name = name
+        self.project_id = project_id
+        self.url = url
+    def __str__(self):
+        return self.username() + "/" + self.name
+    def username(self):
+        return self.url.split("/")[4]
+    def cachefilename(self, path):
+        return getCachename(self.username(), self.name, path)
+    def projectDescription(self):
+        try:
+            with open(self.cachefilename("DESCRIPTION"), "r") as f:
+                desc = parseDESCRIPTION(f.readlines())
+                return desc[desc.keys()[0]]
+        except Exception, e:
+            print "Error getting project description: ", self.cachefilename("DESCRIPTION"), str(e)
+            return { "error": str(e)}
 
 # Cache the git object between calls
 git = None

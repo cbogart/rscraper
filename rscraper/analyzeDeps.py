@@ -82,7 +82,8 @@ def parseDESCRIPTION(txt):
         try:
             db[thissection["Package"][0]] = thissection
         except:
-            print "coudn't parse Package name in description"
+            db["UNKNOWN"] = thissection
+            print "couldn't parse Package name in description"
             print thissection
 
     return db

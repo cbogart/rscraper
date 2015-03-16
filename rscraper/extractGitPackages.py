@@ -34,6 +34,11 @@ def extractGitDescription(conn):
         if name not in desc or desc[name]["priority"] < pri:
             desc[name] = descinfo
         desc[name]["priority"] = pri
+        if "authors" not in desc[name]:
+            if "Author" in descinfo:
+                desc[name]["authors"] = descinfo["Author"]
+            else:
+                desc[name]["authors"] = ""
         if "user" not in desc[name]:
             desc[name]["user"] = prj.username()
         if "URL" not in desc[name] or desc[name]["URL"] == "" or desc[name]["URL"] == [""]:

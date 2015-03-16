@@ -37,7 +37,11 @@ def createCranBiocGitTables():
         fillInDois(conn)
 
 if __name__ == '__main__':
-    #createCranBiocGitTables()
     conn = getConnection("repoScrape.db")
+    rscraper.createSyntheticCitations(conn)
+    #createCranBiocGitTables()
+    
+    
     fillInDois(conn)
    
+    #testScopus()

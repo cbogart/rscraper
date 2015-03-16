@@ -7,4 +7,6 @@ from getRepoMetadata import getBioconductorWebscrape, getCranWebscrape
 from getRepoMetadata import createMetadataTables, saveMetadata
 from getRepoMetadata import getBioconductorDescription, getCranDescription
 from gitscraper import queryRandomProject, queryParticularProject
-from crossref import fillInDois
+from crossref import fillInDois, citationtext2doi, createSyntheticCitations
+from scopus import findCanonicalFromDoi, testScopusNames, testScopusDoi
+from utils import stripParentheticals, justAlphabetics
