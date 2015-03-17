@@ -18,7 +18,6 @@ def citationtext2doi(fullref):
     print query
     queryresult = urllib2.urlopen("http://api.crossref.org/works?rows=1&query=" + query).read()
     result = json.loads(queryresult)
-    print json.dumps(result, indent=4)
     if len(result["message"]["items"]) > 0:
         return result["message"]["items"][0]
     else:
@@ -32,12 +31,22 @@ def createSyntheticCitations(conn):
             ])
     conn.commit()
     
+def flattenJson(jsonobj):
+    if isinstance(jsonobj, list):
+        return " ".join([flattenJson(l) for l in jsonobj])
+    elif isinstance(jsonobj, dict):
+        return " ".join([flattenJson(jsonobj[k]) for k in jsonobj])
+    else:
+        return jsonobj.encode('ascii', 'replace')
+    
 def fillInDois(conn):
-    unannotated = conn.execute("select rowid, * from citations where doi = '' or doi is null;")
+    unannotated = conn.execute("select rowid, * from citations where doi = '' or doi is null limit 50;")
     toupdate = dict()
     import pdb
     try:
         for cite in unannotated:
+            if cite["citations.citation"].strip() == "":
+                continue
             print "Looking up DOI for", cite["citations.package_name"], ": ", cite["citations.citation"]
             time.sleep(2)
             refinfo = citationtext2doi(cite["citations.citation"])
@@ -48,9 +57,12 @@ def fillInDois(conn):
         import pdb
         pdb.set_trace()
     finally:
-        To do: add authors (toupdate[r]["author"][x]["family"], given) to title, just to be sure
-        conn.executemany("update citations set doi = ?, doi_title=?, doi_confidence=? where rowid=?;", 
-                         [(toupdate[r]["DOI"], toupdate[r]["title"][0] if toupdate[r]["title"] else "none", toupdate[r]["score"], r) for r in toupdate])
+        for r in toupdate:
+            auth = toupdate[r]["author"] if "author" in toupdate[r] else "no author"
+            title = toupdate[r]["title"][0] if toupdate[r]["title"] else "no title"
+            citationinfo = flattenJson(auth) + ", " + title 
+            conn.execute("update citations set doi = ?, doi_title=?, doi_confidence=? where rowid=?;", 
+                         (toupdate[r]["DOI"], citationinfo, toupdate[r]["score"], r))
         conn.commit()
     
 if __name__ == '__main__':
