@@ -47,13 +47,54 @@ def scrapeCitationBioc(name):
     citeurl = "http://bioconductor.org/packages/release/bioc/citations/" + urllib.quote(name) + "/citation.html"
     print citeurl
     citepage = BeautifulSoup(urllib2.urlopen(citeurl).read())
-    return citepage.get_text()
+    return { "citations": citepage.get_text() }
 
+def guessTitlesFromCitations(conn):
+    cites = conn.execute("select * from citations where doi = '' or doi='none' or doi is null;")
+    for cite in cites:
+        try:
+            citetext = cite["citations.citation"].split("\n\n")[0].replace("\n","")
+            auths = citetext.split("(")[0]
+            titleCands = citetext.split(")")[1].split(".")
+            title = [t.strip() for t in titleCands if t.strip() != ""][0]
+            print "Authors:", auths
+            print "Title:", title.encode("ascii","replace")
+            print "\n"
+        except Exception, e:
+            cites["citations.title"]
+
+
+
+def extractBibtexField(bibtex, fieldname):
+    srch =  re.search(re.compile(r'\b%s\s*=\s*{(.*?)}' % fieldname))
+    if srch.groups() > 0:
+        return srch.group(0)
+    else:
+        return ""
+    
+def extractBibtexFields(bibtex):
+    flds = ["title", "year", "author", "doi"]
+    return { fld: extractBibtexField(bibtex, fld) for fld in flds }
+
+def extractCITATIONparts(citation):
+    return citation.split("citEntry")
+
+def extractCITATIONfield(citationPart, fieldname):
+    srch = re.search(re.compile(r'\b%s\s*=\s*(.*?)}' % fieldname))
+    return srch
+
+def extractCITATIONfields(citationPart):
+    flds = ["title", "year", "author", "doi"]
+    return { fld: extractCITATIONfield(citationPart, fld) for fld in flds }
+   
+#http://bibtexparser.readthedocs.org/en/latest/_modules/bparser.html
 def scrapeCitationCran(name):
     citeurl = "http://cran.r-project.org/web/packages/" + urllib.quote(name) + "/citation.html"
     print citeurl
     citepage = BeautifulSoup(urllib2.urlopen(citeurl).read())
-    return citepage.find("blockquote").find("p").get_text().replace("\n","").strip()
+    maincitation = citepage.find("blockquote").find("p").get_text().replace("\n","").strip()
+    bibtex = [pre.get_text() for pre in citepage.find_all("pre")]
+    return { "citations": maincitation, "bibtex": bibtex}
 
 def getCranWebscrape(limit=9999999):
     categories = {}
@@ -100,10 +141,32 @@ def createMetadataTables(conn):
                               "url string, " +\
                               "title string, description string, authors string, lastversion string, " \
                               "unique(name)  on conflict replace")
-    #recreateTable(conn, "citations", "package_name string, citation string, doi string, " \
-    #                          "doi_confidence, doi_title string, canonical boolean")
+    if (True == False):
+        recreateTable(conn, "citations", "package_name string, citation string, year string, " +\
+                              "doi_given, boolean, author string, title string, doi string, " +    \
+                              "tried_crossref_doi_lookup boolean, scopus_lookup_date string, " + \
+                              "scopus_citedby_count int, scopus_url string, scopus_id string, " +\
+                              "doi_confidence, doi_title string, canonical boolean")
 
 legalimport = re.compile("[a-zA-Z_0-9\._]+")
+
+def extractDoiFromCitation(citation):
+    found = re.findall(r"doi:(10\S+)", citation) + \
+            re.findall(r"doi.org/(10\S+)", citation)
+    for f in found:
+        if f[-1:] in ".,{}()[]\"\'":
+            yield f[:-1]
+        else:
+            yield f
+            
+doiexample = """Revell, L. J. (2012) phytools: An R package for phylogenetic comparative biology (and other things). Methods Ecol. Evol. 3 217-223. doi:10.1111/j.2041-210X.2011.00169.x
+Xiaoyong Sun, Kai Wu, Dianne Cook.                PKgraph: An R package for graphically diagnosing population pharmacokinetic models.                Computer Methods and Programs in Biomedicine. May 7, 2011.                 doi:10.1016/j.cmpb.2011.03.016.
+Fang H. dcGOR: an R package for analysing ontologies and protein domain annotations. PLoS Computational Biology 10(10):e1003929, 2014. http://dx.doi.org/10.1371/journal.pcbi.1003929
+"""
+doianswer = ["10.1111/j.2041-210X.2011.00169.x", "10.1016/j.cmpb.2011.03.016", "10.1371/journal.pcbi.1003929"]
+assert list(extractDoiFromCitation(doiexample)) == doianswer, "extractDoiFromCitation failed: " + " ".join(list(extractDoiFromCitation(doiexample)))
+
+
 
 def saveMetadata(pkgDescription, pkgWebscrape, conn):
     for rec in pkgWebscrape:
@@ -131,10 +194,20 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
         
         if "citation" in pkgWebscrape[rec] and pkgWebscrape[rec]["citation"] != "HTTP Error 404: Not Found":
             citations = [cite.strip() for cite in pkgWebscrape[rec]["citation"].split("\n\n") if cite.strip() != ""]
+            citations2 = []
             for cite in citations:
-                rows = conn.execute("select * from citations where package_name=? and citation=?;", (rec, cite))
+                dois = list(extractDoiFromCitation(cite))
+                if len(dois) > 0:
+                    for doi in dois:
+                        citations2.extend([(cite, doi)])
+                else:
+                    citations2.extend([(cite,"")])    
+            for (cite,doi) in citations2:
+                citepattern = re.sub("R package version \d.*?,", "R package version %,", cite)
+                rows = conn.execute("select * from citations where package_name=? and citation like ?;", (rec, citepattern))
                 if len(list(rows)) == 0:
-                    conn.execute("insert into citations (package_name, citation, canonical) values (?,?,?)", (rec, cite, True))
+                    conn.execute("insert into citations (package_name, citation, doi, canonical, doi_given) values (?,?,?,?,?)", \
+                                 (rec, cite, doi, True, doi != ""))
 
         if rec in pkgDescription:
             try:

@@ -23,25 +23,42 @@ def createCranBiocGitTables():
         conn = getConnection("repoScrape.db")
         createMetadataTables(conn)
 
+        print "Git..."
         gws = extractGitWebscrape(conn)
         gd = extractGitDescription(conn)
         saveMetadata(gd,gws,conn)
-
+        print "Bioconductor...****************************"
         bws = jmemo(lambda:getBioconductorWebscrape(), "biowebtest1")
         biod = jmemo(lambda:getBioconductorDescription(), "biodesctest2")
         saveMetadata(biod, bws, conn)
-
+        print "CRAN...*************************"
         cws = jmemo(lambda:getCranWebscrape(), "cranwebtest3")
         crand = jmemo(lambda:getCranDescription(), "crandesctest4")
         saveMetadata(crand, cws, conn)
+        print "CROSSREF*********************"
+        crossref.extractAuthorTitleFromCitations(conn)
+        crossref.fillInAuthorTitleFromPackage(conn)
+        print "FillINDOIs*********************"
         fillInDois(conn)
+        print "SCOPUS***********************"
+        doScopusLookup(conn)
 
 if __name__ == '__main__':
     conn = getConnection("repoScrape.db")
-    rscraper.createSyntheticCitations(conn)
+    ##cur = conn.execute("select * from citations where doi_confidence < 1 and package_name = 'metafor' and doi_confidence > 0 order by random() limit 1;")
+    #for c in cur:
+    #    print c["citations.citation"]
+    #    print "Calling with ", c["citations.author"], c["citations.title"], c["citations.doi_confidence"]
+    #    testScopusNames(c["citations.author"], c["citations.title"])
+    #crossref.fillInAuthorTitleFromPackage(conn)
+    #rscraper.createSyntheticCitations(conn)
     #createCranBiocGitTables()
-    
-    
-    fillInDois(conn)
+    doScopusLookup(conn)
+    #adegenet = getRepoMetadata.scrapeCitationCran("adegenet")
+    #print json.dumps(adegenet, indent=4)
+    #fillInDois(conn)
    
     #testScopus()
+    
+    
+    

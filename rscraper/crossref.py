@@ -38,32 +38,62 @@ def flattenJson(jsonobj):
         return " ".join([flattenJson(jsonobj[k]) for k in jsonobj])
     else:
         return jsonobj.encode('ascii', 'replace')
-    
+  
+def fillInAuthorTitleFromPackage(conn):
+    cites = conn.execute("select * from packages left join citations on name=package_name where (citations.title = '' or citations.title is null);")
+    for cite in cites:
+        conn.execute("update citations set title=?, author=? where citation=? and package_name=?;",
+                      (cite["packages.name"], cite["packages.authors"], cite["citations.citation"], cite["packages.name"]))
+    conn.commit()
+        
+def extractAuthorTitleFromCitations(conn):
+    cites = conn.execute("select citation from citations where canonical = 1 and (author = '' or author is null);")
+    for cite in cites:
+        citetext = cite["citations.citation"].replace("\n","")
+        #print citetext
+        try:
+            auths = citetext.split("(")[0].encode("ascii","replace")
+            year = citetext.split("(")[1].split(")")[0]
+            titleCands = "".join(citetext.split(")")[1:]).split(".")
+            title = [t.strip() for t in titleCands if t.strip() != ""][0].encode("ascii","replace")
+            
+            conn.execute("update citations set author=?, title=?, year=? where citation = ?;",
+                         (auths, title, year, cite["citations.citation"]))
+        except Exception, e:
+            print "Error getting author and text from ", citetext
+            print " ---> ERROR: ", e
+            conn.execute("update citations set author=?, title=?, year=? where citation = ?;",
+                         ("?", "Error:" + str(e), "????", cite["citations.citation"]))
+    conn.commit()   
+
+        
 def fillInDois(conn):
-    unannotated = conn.execute("select rowid, * from citations where doi = '' or doi is null limit 50;")
+    print "Skipping fillInDois"
+    return
+    unannotated = conn.execute("select rowid, * from citations where tried_crossref_doi_lookup = 0 or tried_crossref_doi_lookup is null and (author is not null and title is not null and author != '' and title != '') and (doi = '' or doi is null);")
     toupdate = dict()
     import pdb
-    try:
-        for cite in unannotated:
-            if cite["citations.citation"].strip() == "":
-                continue
+    for cite in unannotated:
+        try:
             print "Looking up DOI for", cite["citations.package_name"], ": ", cite["citations.citation"]
+            rowid = cite["citations.rowid"]
             time.sleep(2)
             refinfo = citationtext2doi(cite["citations.citation"])
             print "  --->", refinfo["DOI"], refinfo["score"], refinfo["title"][0] if refinfo["title"] else "none", "\n"
-            toupdate[cite["citations.rowid"]] = refinfo
-    except Exception, e:
-        print e
-        import pdb
-        pdb.set_trace()
-    finally:
-        for r in toupdate:
-            auth = toupdate[r]["author"] if "author" in toupdate[r] else "no author"
-            title = toupdate[r]["title"][0] if toupdate[r]["title"] else "no title"
+            auth = refinfo["author"] if "author" in refinfo else "no author"
+            title = refinfo["title"][0] if refinfo["title"] else "no title"
             citationinfo = flattenJson(auth) + ", " + title 
+            
+            conn.execute("update citations set doi = ?, doi_title=?, doi_confidence=?, tried_crossref_doi_lookup where rowid=?;", 
+                             (refinfo["DOI"], citationinfo, refinfo["score"], True, rowid))
+            conn.commit()
+            print "Written!"
+        except Exception, e:
+            print "ERROR!", e
             conn.execute("update citations set doi = ?, doi_title=?, doi_confidence=? where rowid=?;", 
-                         (toupdate[r]["DOI"], citationinfo, toupdate[r]["score"], r))
-        conn.commit()
+                             ("none", "Error: " + str(e), 0.0, rowid))
+            conn.commit()
+            
     
 if __name__ == '__main__':
     fullref = u'Carvalho BS, Louis TA and Irizarry RA (2010). “Quantifying uncertainty in genotype calls.” Bioinformatics, 15;26(2), pp. 242-9.'

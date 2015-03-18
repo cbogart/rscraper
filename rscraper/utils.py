@@ -1,4 +1,5 @@
 import re
+from difflib import SequenceMatcher
 
 def stripParentheticals(stuff):
     oldstuff = ""
@@ -21,3 +22,6 @@ assert stripParentheticals(" asdf (bob) is (the) very (yat (guy) of [it (no)]) e
     stripParentheticals(" asdf (bob) is (the) very (yat (guy) of [it (no)]) end") 
 
 assert justAlphabetics("      x  !  yz  g ") == " x yz g ", justAlphabetics("      x     yz  g ")
+
+def similar(a, b):     
+    return SequenceMatcher(None, a, b).ratio()
