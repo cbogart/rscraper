@@ -47,9 +47,15 @@ def scrapeCitationBioc(name):
     citeurl = "http://bioconductor.org/packages/release/bioc/citations/" + urllib.quote(name) + "/citation.html"
     print citeurl
     citepage = BeautifulSoup(urllib2.urlopen(citeurl).read())
+    # To Do:
+    # More structured citation info available from https://hedgehog.fhcrc.org/bioconductor/trunk/madman/Rpacks/  (package)   /inst/CITATION
+    #  but it's R code that generates a citation, and it's done in a pretty varied way, so it would have to be parsed by an R subprocess.
+    #
+    # This is less important than with cran becasue bioconductor citations are a little more structured in their 
+    # plain text form
     return { "citations": citepage.get_text() }
 
-def guessTitlesFromCitations(conn):
+def deprecatedGuessTitlesFromCitations(conn):
     cites = conn.execute("select * from citations where doi = '' or doi='none' or doi is null;")
     for cite in cites:
         try:
@@ -66,15 +72,33 @@ def guessTitlesFromCitations(conn):
 
 
 def extractBibtexField(bibtex, fieldname):
-    srch =  re.search(re.compile(r'\b%s\s*=\s*{(.*?)}' % fieldname))
-    if srch.groups() > 0:
-        return srch.group(0)
+    """Not a full-blown parser; assumes that }, at end of line ends a field. Probably wrong in a few rare cases."""
+    srch =  re.search((r"\b%s\s*=\s*{(.*?)},\s*\n" % fieldname),bibtex,re.DOTALL)
+    if srch:
+        return re.sub("\s+"," ", re.sub(r"{..(.)}", r"\1", srch.group(1)).replace("{","").replace("}",""))
     else:
         return ""
     
 def extractBibtexFields(bibtex):
     flds = ["title", "year", "author", "doi"]
     return { fld: extractBibtexField(bibtex, fld) for fld in flds }
+
+exampleBibtex = r"""
+  @Article{,
+    author = {Chris J. {Stubben} and Bro{\"o}k G. Milligan},
+    title = {Estimating and Analyzing Demographic Models Using the
+      popbio Package in R},
+    journal = {Journal of Statistical Software},
+    volume = {22},
+    number = {11},
+    year = {2007},
+  }
+"""
+assert extractBibtexFields(exampleBibtex) == {"title": "Estimating and Analyzing Demographic Models Using the popbio Package in R", \
+                                              "year": "2007", 
+                                              "author": "Chris J. Stubben and Brook G. Milligan", 
+                                              "doi": ""}, \
+                                              "Bibtex extraction failed: " + str(extractBibtexFields(exampleBibtex))
 
 def extractCITATIONparts(citation):
     return citation.split("citEntry")
@@ -118,9 +142,12 @@ def getCranWebscrape(limit=9999999):
         except:
             authorlist = ""
         description = do_or_error(lambda: detail.find("p").get_text())
-        citation = do_or_error(lambda: scrapeCitationCran(name))
-        
-        categories[name] = { "url": fullurl, "repository": "cran", "authors": authorlist, "views": viewlist, "citation": citation, "title": title, "description": description }
+        try:
+            citeinfo = scrapeCitationCran(name)
+        except:
+            citeinfo = {"citations": "", "bibtex" : [] }
+            
+        categories[name] = { "url": fullurl, "repository": "cran", "authors": authorlist, "views": viewlist, "bibtex_citations": citeinfo["bibtex"], "citation": citeinfo["citations"], "title": title, "description": description }
 
     return categories
 
@@ -166,23 +193,30 @@ Fang H. dcGOR: an R package for analysing ontologies and protein domain annotati
 doianswer = ["10.1111/j.2041-210X.2011.00169.x", "10.1016/j.cmpb.2011.03.016", "10.1371/journal.pcbi.1003929"]
 assert list(extractDoiFromCitation(doiexample)) == doianswer, "extractDoiFromCitation failed: " + " ".join(list(extractDoiFromCitation(doiexample)))
 
+def fixDoi(doi):
+    if "10" in doi:
+        return "10" + "10".join(doi.split("10")[1:])
+    else:
+        return doi
 
+assert fixDoi("http://dx.doi.org/10.4.4.2/hello/10thousa k") == "10.4.4.2/hello/10thousa k", "fixDoi test #1 failed " + fixDoi("http://dx.doi.org/10.4.4.2/hello/10thousa k")
+assert fixDoi("blorp") == "blorp", "fixDoi test #2 failed " + fixDoi("blorp")
 
 def saveMetadata(pkgDescription, pkgWebscrape, conn):
+    """Save metadata information we've scraped about packages into database tables: packages, citations, tags, staticdeps"""
     for rec in pkgWebscrape:
 
+        # Fix up the URL: github URLs may be in a weird format (api.github instead of just github)
         url = pkgDescription[rec].get("URL", [""])
         if not isinstance(url, str):  url = url[0]
         if url == "": url = pkgWebscrape[rec].get("url", "")
         if "/api.github" in url:
             url = "http://github.com/" + pkgWebscrape[rec]["user"] + "/" + rec
 
-        #print url, pkgDescription[rec].get("URL", "?"), pkgWebscrape.get("URL", "")
-        #pdb.set_trace()
-
-        # Create a unique record if does not exist
+        # Create a unique record if does not exist in the packages table
         conn.execute("insert or ignore into packages (name) values (?)", (rec,))
 
+        # and now overwrite the existing record with the new information
         conn.execute("update packages set " + 
                 "title=?, description=?, authors=?, repository=?, url=? where name=?;",
                  (pkgWebscrape[rec]["title"], 
@@ -192,7 +226,23 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
                  url,
                  rec))
         
-        if "citation" in pkgWebscrape[rec] and pkgWebscrape[rec]["citation"] != "HTTP Error 404: Not Found":
+        # Write whatever citation information we have into the citations table
+        if "bibtex_citations" in pkgWebscrape[rec] and len(pkgWebscrape[rec]["bibtex_citations"] ) > 0:
+            bibtex = pkgWebscrape[rec]["bibtex_citations"]
+            for bib in bibtex:
+                doi    = fixDoi(extractBibtexField(bib,"doi"))
+                year   = extractBibtexField(bib,"year")
+                title  = extractBibtexField(bib,"title")
+                author = extractBibtexField(bib,"author")
+                citetext = (author + " (" + year + "). " + title + ".").replace("..",".")
+                
+                rows = conn.execute("select * from citations where package_name=? and citation = ?;", (rec, citetext))
+                if len(list(rows)) == 0:
+                    conn.execute("insert into citations (package_name, citation, title, author, year, doi, canonical, doi_given) " + \
+                                 " values (?,?,?,?,?,?,?,?)", \
+                                 (rec, citetext, title, author, year, doi, True, doi != ""))
+
+        elif "citation" in pkgWebscrape[rec] and pkgWebscrape[rec]["citation"] != "HTTP Error 404: Not Found":
             citations = [cite.strip() for cite in pkgWebscrape[rec]["citation"].split("\n\n") if cite.strip() != ""]
             citations2 = []
             for cite in citations:
@@ -207,8 +257,9 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
                 rows = conn.execute("select * from citations where package_name=? and citation like ?;", (rec, citepattern))
                 if len(list(rows)) == 0:
                     conn.execute("insert into citations (package_name, citation, doi, canonical, doi_given) values (?,?,?,?,?)", \
-                                 (rec, cite, doi, True, doi != ""))
+                                 (rec, cite, fixDoi(doi), True, doi != ""))
 
+        # Now add in any information gleaned from the DESCRIPTION file
         if rec in pkgDescription:
             try:
                 version = pkgDescription[rec].get("Version", [""])
@@ -221,6 +272,7 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
             except Exception, e:
                 pdb.set_trace()
                 print "Could not write package version information"
+            
             # Now save static dependencies
             imports = list(set(pkgDescription[rec].get("Imports", []) + 
                                pkgDescription[rec].get("Requires", [])))
@@ -228,7 +280,7 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
             conn.executemany("insert into staticdeps (package_name, depends_on) values (?,?);",
                 [(rec, imp) for imp in imports])
 
-
+        # Finally, add information about what task view the package is in to the tags table
         if "views" in pkgWebscrape[rec] and len(pkgWebscrape[rec]["views"]) > 0:
             conn.execute("delete from tags where package_name = ? " + \
                     " and tagtype ='taskview';", (rec,))

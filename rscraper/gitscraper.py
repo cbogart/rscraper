@@ -104,6 +104,14 @@ class GitProjectInfo:
             with open(self.cachefilename("DESCRIPTION"), "r") as f:
                 desc = parseDESCRIPTION(f.readlines())
                 return desc[desc.keys()[0]]
+        except IOError, e:
+            try:
+                with open(self.cachefilename("pkg/DESCRIPTION"), "r") as f:
+                    desc = parseDESCRIPTION(f.readlines())
+                    return desc[desc.keys()[0]]
+            except IOError, e:
+                print "Error getting project description: ", self.cachefilename("DESCRIPTION"), str(e)
+                return { "error": str(e)}
         except Exception, e:
             print "Error getting project description: ", self.cachefilename("DESCRIPTION"), str(e)
             return { "error": str(e)}

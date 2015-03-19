@@ -42,12 +42,13 @@ def flattenJson(jsonobj):
 def fillInAuthorTitleFromPackage(conn):
     cites = conn.execute("select * from packages left join citations on name=package_name where (citations.title = '' or citations.title is null);")
     for cite in cites:
+        faketitle = cite["packages.name"] + ": " + cite["packages.title"].replace("\n"," ").replace("  "," ")
         conn.execute("update citations set title=?, author=? where citation=? and package_name=?;",
-                      (cite["packages.name"], cite["packages.authors"], cite["citations.citation"], cite["packages.name"]))
+                      (faketitle, cite["packages.authors"], cite["citations.citation"], cite["packages.name"]))
     conn.commit()
         
 def extractAuthorTitleFromCitations(conn):
-    cites = conn.execute("select citation from citations where canonical = 1 and (author = '' or author is null);")
+    cites = conn.execute("select package_name, citation from citations where canonical = 1 and (author = '' or author is null or author='?');")
     for cite in cites:
         citetext = cite["citations.citation"].replace("\n","")
         #print citetext
@@ -57,13 +58,10 @@ def extractAuthorTitleFromCitations(conn):
             titleCands = "".join(citetext.split(")")[1:]).split(".")
             title = [t.strip() for t in titleCands if t.strip() != ""][0].encode("ascii","replace")
             
-            conn.execute("update citations set author=?, title=?, year=? where citation = ?;",
-                         (auths, title, year, cite["citations.citation"]))
+            conn.execute("update citations set author=?, title=?, year=? where package_name = ? and citation = ?;",
+                         (auths, title, year, cite["citations.package_name"], cite["citations.citation"]))
         except Exception, e:
-            print "Error getting author and text from ", citetext
-            print " ---> ERROR: ", e
-            conn.execute("update citations set author=?, title=?, year=? where citation = ?;",
-                         ("?", "Error:" + str(e), "????", cite["citations.citation"]))
+            pass
     conn.commit()   
 
         

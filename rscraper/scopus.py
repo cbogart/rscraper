@@ -7,6 +7,7 @@ from test.sortperf import doit
 import traceback
 import re
 import rscraper
+import pickle
 from sympy.physics.quantum.shor import ratioize
 
 #url_query_doi_inst = "https://api.elsevier.com/content/search/scopus?query=DOI({doi})&field=citedby-count&apiKey={scopus}"+ \
@@ -21,6 +22,33 @@ url_query_doi = "https://api.elsevier.com/content/search/index:SCOPUS?query=DOI(
 url_query = "https://api.elsevier.com/content/search/scopus?query=" + \
      "{qry}&apiKey={scopus}"
     
+
+scopus_cache = 0
+def scopus_proxy(url):
+    """This is for debugging
+    
+    We can test the same code over and over without hitting scopus' server more than necessary"""
+    global scopus_cache
+    if isinstance(scopus_cache, int):
+        try:
+            with open("scopus_cache.pickle") as f:
+                scopus_cache = pickle.load(f)
+        except Exception, e:
+            print str(e)
+            scopus_cache = {}
+    if url in scopus_cache:
+        print "     using scopus proxy"
+        return scopus_cache[url]
+    else:
+        print "     using real scopus query"
+        time.sleep(1)
+        result = urllib2.urlopen(url).read()
+        scopus_cache[url] = result
+        with open("scopus_cache.pickle", "w") as f:
+            pickle.dump(scopus_cache,f)
+        return result
+    
+    
 #
 # Given: a doi OR a citation text OR a synthesized citation text
 # Find: a citation count and a link to scopus for those
@@ -32,13 +60,19 @@ url_query = "https://api.elsevier.com/content/search/scopus?query=" + \
 def findCanonicalFromDoi(doi, credentials):
        
     url = url_query_doi.format(doi=doi, scopus=credentials["scopus"])
-    
-    queryresult = urllib2.urlopen(url).read()
+    try:
+        queryresult = scopus_proxy(url)
+        result = json.loads(queryresult)
+        return (queryresult, result)
+    except Exception, e:
+        return ("",{"error": str(e)})
+
+def findCanonicalFromScopusId(scopus_id, credentials):
+    #http://api.elsevier.com/content/search/index:scopus?query=scopus-id(77951947707)&apiKey=be2e018525dad4e6ab7908f92ce937f1
+    url=url_query.format(qry="scopus-id(" + scopus_id + ")", scopus=credentials["scopus"])
+    queryresult = scopus_proxy(url)
     result = json.loads(queryresult)
     return (queryresult, result)
-
-
-
     
 def findCanonicalFromAuthorTitle(author, title, credentials):
     try:
@@ -51,18 +85,17 @@ def findCanonicalFromAuthorTitle(author, title, credentials):
         #    url = ""
         #    raise Exception("No authors known for this package")
         if " " in title and len(title) > 8:
-            qry = urllib.quote_plus("title-abs-key-auth(" + rscraper.justAlphabetics(title) + ")")
+            qry = urllib.quote_plus('title-abs-key-auth("' + rscraper.justAlphabetics(title) + '")')
         else:
-            qry = urllib.quote_plus("title-abs-key-auth(" + rscraper.justAlphabetics(title) + " " + authorlist + ")")
-        time.sleep(1)
+            qry = urllib.quote_plus('title-abs-key-auth("' + rscraper.justAlphabetics(title) + " " + authorlist + '")')
         url = url_query.format(qry=qry, scopus=credentials["scopus"])
         
-        queryresult = urllib2.urlopen(url).read()
+        queryresult = scopus_proxy(url)
         result = json.loads(queryresult)
         return (queryresult, result)
     except Exception, e:
-        print url
         print str(e)
+        print url
         raise e
 
 
@@ -77,20 +110,23 @@ def totalCountScopusResults(result):
 def countScopusResults(result):
     return len(result["search-results"]["entry"])
 
-def scopusError(result, which=0):
-    return result["search-results"]["entry"][which]["error"]
+def scopusError(result, err, which=0):
+    try:
+        return result["search-results"]["entry"][which]["error"]
+    except:
+        return str(err)
     
 def citeCountFromScopusResult(result, which = 0):
     try:
         return result["search-results"]["entry"][which]["citedby-count"]
-    except:
-        return scopusError(result,which)
+    except Exception, e:
+        return scopusError(result,e,which)
         
 def citeTitleFromScopusResult(result, which = 0):
     try:
         return result["search-results"]["entry"][which]["dc:title"]
-    except:
-        return scopusError(result,which)
+    except Exception, e:
+        return scopusError(result,e,which)
 
 def doiFromScopusResult(result, which = 0):
     try:
@@ -101,23 +137,24 @@ def doiFromScopusResult(result, which = 0):
 def citeCreatorFromScopusResult(result, which = 0):
     try:
         return result["search-results"]["entry"][which]["dc:creator"]
-    except:
-        return scopusError(result,which)
+    except Exception, e:
+        return scopusError(result,e,which)
 
 def scopusIdFromScopusResult(result, which = 0):
     try:
         api_url = result["search-results"]["entry"][which]["prism:url"] 
-        return api_url.split("/")[-1]
-    except:
-        return scopusError(result,which)
+        id = api_url.split("/")[-1]
+        return id.split(":")[-1]
+    except Exception, e:
+        return scopusError(result,e,which)
         
 def citeUrlFromScopusResult(result, which = 0):
     try:
         api_url = result["search-results"]["entry"][which]["prism:url"] 
-        scopus_id = api_url.split("/")[-1]
+        scopus_id = api_url.split("/")[-1].split(":")[-1]
         return "http://www.scopus.com/inward/citedby.url?partnerID=HzOxMe3b&scp=" + scopus_id
-    except:
-        return scopusError(result,which)
+    except Exception, e:
+        return scopusError(result,e,which)
 
 def findBestScopusMatch(result, actualTitle):
     bestscore = -1
@@ -141,14 +178,31 @@ def dumpScopusInfo(result):
         print "     (listed here:", citeUrlFromScopusResult(result,res), ")"
         print ""
      
+def doScopusRefresh(conn, creds):
+    cur = conn.execute("select distinct(scopus_id) from citations where length(scopus_id) > 0 and " +\
+                       "scopus_id != 'Result set was empty' and scopus_lookup_date < datetime('now', ' -6 days');")
+    for c in cur:
+        print "Refreshing citation for scopus id:", c["citations.scopus_id"]
+        try:
+            (raw, parsed) = findCanonicalFromScopusId(c["citations.scopus_id"], creds)
+            citedby_count = citeCountFromScopusResult(parsed)
+            conn.execute("update citations set scopus_lookup_date = datetime('now', 'localtime'), " +\
+                         "scopus_citedby_count=? where scopus_id=?;",
+                         ((citedby_count, c["citations.scopus_id"])))
+            conn.commit()
+        except Exception, e:
+            print "    Cannot refresh because", str(e)
+    
+    
 def doScopusLookup(conn):
     creds = rscraper.loadCredentials("credentials.json")
     
-    cur = conn.execute("select * from citations where (scopus_lookup_date is null or scopus_lookup_date = '' or " +\
-                       "scopus_lookup_date < datetime('now', ' -6 days')) and length(doi) > 0 and (doi_given == 1 or doi_confidence >= 1.0)")
+    doScopusRefresh(conn,creds)
+    
+    cur = conn.execute("select * from citations where (scopus_lookup_date is null or scopus_lookup_date = '')" +\
+                       "and length(doi) > 0 and (doi_given == 1 or doi_confidence >= 1.0)")
     for c in cur:
         print "Scopus lookup using doi for ", c["citations.package_name"]
-        time.sleep(1)
         (raw,parsed) = findCanonicalFromDoi(c["citations.doi"], creds)
         scopus_id = scopusIdFromScopusResult(parsed)
         scopus_url = citeUrlFromScopusResult(parsed)
@@ -158,12 +212,15 @@ def doScopusLookup(conn):
                      ((scopus_id, scopus_url, citedby_count, c["citations.package_name"], c["citations.doi"])))
         conn.commit()
     
-    cur = conn.execute("select * from citations where (scopus_lookup_date is null or scopus_lookup_date = '' or " +\
-                       "scopus_lookup_date < datetime('now', ' -6 days')) and (doi is null or doi = '' or doi_confidence < 1) and " +\
-                       "length(author) > 0 and length(title) > 0;")
+    cur = conn.execute("select * from citations where (scopus_lookup_date is null or scopus_lookup_date = '') " +\
+                       "and (doi is null or doi = '' or doi_confidence < 1) and " +\
+                       "length(author) > 0 and length(title) > 0 and package_name not in (select name from packages where " +\
+                       "repository='git');")
     for c in cur:
         print "Scopus lookup using author/title for ", c["citations.package_name"], "auth:", c["citations.author"], "title:", c["citations.title"]
-        time.sleep(1)
+        if c["citations.title"].startswith("Error:") or len(c["citations.title"]) < 7:
+            print "    Skipping this one"
+            continue
         (raw,parsed) = findCanonicalFromAuthorTitle(c["citations.author"], c["citations.title"], creds)
         dumpScopusInfo(parsed)
         which = findBestScopusMatch(parsed, c["citations.title"])
