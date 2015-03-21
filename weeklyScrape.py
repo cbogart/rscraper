@@ -28,12 +28,12 @@ def createCranBiocGitTables():
         gd = extractGitDescription(conn)
         saveMetadata(gd,gws,conn)
         print "Bioconductor...****************************"
-        bws = jmemo(lambda:getBioconductorWebscrape(), "biowebtest1")
-        biod = jmemo(lambda:getBioconductorDescription(), "biodesctest2")
+        bws = jmemo(lambda:getBioconductorWebscrape(), "bioc_web_scrape")
+        biod = jmemo(lambda:getBioconductorDescription(), "bioc_desc_scrape")
         saveMetadata(biod, bws, conn)
         print "CRAN...*************************"
-        cws = jmemo(lambda:getCranWebscrape(), "cranwebtest3")
-        crand = jmemo(lambda:getCranDescription(), "crandesctest4")
+        cws = jmemo(lambda:getCranWebscrape(), "cran_web_scrape")
+        crand = jmemo(lambda:getCranDescription(), "cran_desc_scrape")
         saveMetadata(crand, cws, conn)
         print "CROSSREF*********************"
         crossref.extractAuthorTitleFromCitations(conn)

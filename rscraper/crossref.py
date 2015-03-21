@@ -47,21 +47,28 @@ def fillInAuthorTitleFromPackage(conn):
                       (faketitle, cite["packages.authors"], cite["citations.citation"], cite["packages.name"]))
     conn.commit()
         
+def guessAuthorTitleYearFromCitationString(citetext):
+    citetext = citetext.replace("\n", " ")
+    auths = citetext.split("(")[0].encode("ascii","replace").strip()
+    year = citetext.split("(")[1].split(")")[0]
+    titleCands = "".join(citetext.split(")")[1:]).split(".")
+    title = [t.strip() for t in titleCands if t.strip() != ""][0]
+    if not isinstance(title, unicode):
+        title= title.decode("utf-8")
+    title = title.encode("ascii","replace")
+    title = title.replace("?","").strip()
+    return (auths, title, year)   
+           
 def extractAuthorTitleFromCitations(conn):
     cites = conn.execute("select package_name, citation from citations where canonical = 1 and (author = '' or author is null or author='?');")
     for cite in cites:
-        citetext = cite["citations.citation"].replace("\n","")
-        #print citetext
-        try:
-            auths = citetext.split("(")[0].encode("ascii","replace")
-            year = citetext.split("(")[1].split(")")[0]
-            titleCands = "".join(citetext.split(")")[1:]).split(".")
-            title = [t.strip() for t in titleCands if t.strip() != ""][0].encode("ascii","replace")
-            
-            conn.execute("update citations set author=?, title=?, year=? where package_name = ? and citation = ?;",
-                         (auths, title, year, cite["citations.package_name"], cite["citations.citation"]))
-        except Exception, e:
-            pass
+        citetext = cite["citations.citation"]
+        #try:
+        (auths, title, year) = guessAuthorTitleYearFromCitationString(citetext)            
+        conn.execute("update citations set author=?, title=?, year=? where package_name = ? and citation = ?;",
+                     (auths, title, year, cite["citations.package_name"], cite["citations.citation"]))
+        #except Exception, e:
+        #    raise e
     conn.commit()   
 
         
@@ -70,7 +77,6 @@ def fillInDois(conn):
     return
     unannotated = conn.execute("select rowid, * from citations where tried_crossref_doi_lookup = 0 or tried_crossref_doi_lookup is null and (author is not null and title is not null and author != '' and title != '') and (doi = '' or doi is null);")
     toupdate = dict()
-    import pdb
     for cite in unannotated:
         try:
             print "Looking up DOI for", cite["citations.package_name"], ": ", cite["citations.citation"]

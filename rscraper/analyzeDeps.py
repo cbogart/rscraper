@@ -1,6 +1,5 @@
 import os
-import json, re
-from collections import defaultdict
+import re
 import pdb
 
 def analyzeImports(sourcefilename):

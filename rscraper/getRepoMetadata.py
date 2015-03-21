@@ -20,7 +20,7 @@ def do_or_error(f, msg=None):
     except Exception, e:
         return msg or str(e)[0:50]
 
-def getBioconductorWebscrape(limit = 99999):
+def getBioconductorWebscrape(limit = 99999, limitTo = []):
     categories = {}
 
     index = BeautifulSoup(urllib2.urlopen("http://www.bioconductor.org/packages/release/bioc/").read())
@@ -28,6 +28,8 @@ def getBioconductorWebscrape(limit = 99999):
     for p in packages[:limit]:
         url = p.get("href")
         name = p.get_text()
+        if limitTo and name not in limitTo:
+            continue
         fullurl = "http://www.bioconductor.org/packages/release/bioc/" + url
         detail = BeautifulSoup(urllib2.urlopen(fullurl).read())
         views = detail.find("td", text="biocViews").find_parent().find_all("a")
@@ -36,10 +38,11 @@ def getBioconductorWebscrape(limit = 99999):
         citation = do_or_error(lambda: scrapeCitationBioc(name), msg="")
         titleparent = do_or_error(lambda: detail.find("h1").find_parent())
         title = do_or_error(lambda: titleparent.find("h2").get_text())
-        authorlist = do_or_error(lambda: titleparent.find("p", text = re.compile(r'Author:.*')).get_text())
+        authorlist = do_or_error(lambda: titleparent.find("p", text = re.compile(r'Author:.*')).get_text().replace("Author: ","").strip())
         description = do_or_error(lambda: titleparent.find_all("p")[1].get_text())
         print name, url, '/'.join(viewlist)
-        categories[name] = { "url": fullurl, "repository": "bioconductor", "authors": authorlist, "views": viewlist, "citation": citation, "title": title, "description": description }
+        categories[name] = { "url": fullurl, "repository": "bioconductor", "authors": authorlist, "views": viewlist, 
+                            "citation": citation["citations"], "title": title, "description": description }
 
     return categories
 
@@ -72,10 +75,22 @@ def deprecatedGuessTitlesFromCitations(conn):
 
 
 def extractBibtexField(bibtex, fieldname):
-    """Not a full-blown parser; assumes that }, at end of line ends a field. Probably wrong in a few rare cases."""
+    """Get a field out of a bibtex field.
+    
+    Not a full-blown parser; assumes that close curly plus comma at end of line ends a field. 
+    Cleans up accent junk, enough for Scopus search to work.
+    Probably wrong in a few rare cases.
+    """
     srch =  re.search((r"\b%s\s*=\s*{(.*?)},\s*\n" % fieldname),bibtex,re.DOTALL)
     if srch:
-        return re.sub("\s+"," ", re.sub(r"{..(.)}", r"\1", srch.group(1)).replace("{","").replace("}",""))
+        g = srch.group(1)
+        #g = re.sub(r"{\\.(.)}",r"\1", g)
+        #g = re.sub(r"\\.{(.)}", r"\1", g)
+        g = re.sub(r"""\\[\"v'^`~]""","",g)
+        g.replace(r"\AA","A").replace(r"\aa","a")
+        g = re.sub(r"\\([A-Za-z])",r"\1",g)
+        g = g.replace("{","").replace("}","").replace("\\","")
+        return re.sub("\s+"," ", g)
     else:
         return ""
     
@@ -83,22 +98,6 @@ def extractBibtexFields(bibtex):
     flds = ["title", "year", "author", "doi"]
     return { fld: extractBibtexField(bibtex, fld) for fld in flds }
 
-exampleBibtex = r"""
-  @Article{,
-    author = {Chris J. {Stubben} and Bro{\"o}k G. Milligan},
-    title = {Estimating and Analyzing Demographic Models Using the
-      popbio Package in R},
-    journal = {Journal of Statistical Software},
-    volume = {22},
-    number = {11},
-    year = {2007},
-  }
-"""
-assert extractBibtexFields(exampleBibtex) == {"title": "Estimating and Analyzing Demographic Models Using the popbio Package in R", \
-                                              "year": "2007", 
-                                              "author": "Chris J. Stubben and Brook G. Milligan", 
-                                              "doi": ""}, \
-                                              "Bibtex extraction failed: " + str(extractBibtexFields(exampleBibtex))
 
 def extractCITATIONparts(citation):
     return citation.split("citEntry")
@@ -120,7 +119,7 @@ def scrapeCitationCran(name):
     bibtex = [pre.get_text() for pre in citepage.find_all("pre")]
     return { "citations": maincitation, "bibtex": bibtex}
 
-def getCranWebscrape(limit=9999999):
+def getCranWebscrape(limit=9999999, limitTo = []):
     categories = {}
     
     index = BeautifulSoup(urllib2.urlopen("http://cran.r-project.org/web/packages/available_packages_by_name.html").read())
@@ -128,6 +127,8 @@ def getCranWebscrape(limit=9999999):
     for p in packages[:limit]:
         url = p.get("href")
         name = p.get_text()
+        if limitTo and name not in limitTo:
+            continue
         title = do_or_error(lambda: p.find_parent().find_parent().find_all("td")[-1].get_text())
         fullurl = "http://cran.r-project.org/web/packages/" + name + "/index.html"
         detail = BeautifulSoup(urllib2.urlopen(fullurl).read())
@@ -160,7 +161,7 @@ def recreateTable(conn, table, flds):
     conn.execute(exc)
     conn.commit()
         
-def createMetadataTables(conn):
+def createMetadataTables(conn, eraseCitations=False):
     recreateTable(conn, "tags", "package_name string, tag string, tagtype string")
     recreateTable(conn, "ties", "package_name string, tied string, relationship string")
     recreateTable(conn, "staticdeps", "package_name string, depends_on string")
@@ -168,7 +169,7 @@ def createMetadataTables(conn):
                               "url string, " +\
                               "title string, description string, authors string, lastversion string, " \
                               "unique(name)  on conflict replace")
-    if (True == False):
+    if (eraseCitations):
         recreateTable(conn, "citations", "package_name string, citation string, year string, " +\
                               "doi_given, boolean, author string, title string, doi string, " +    \
                               "tried_crossref_doi_lookup boolean, scopus_lookup_date string, " + \
@@ -186,21 +187,12 @@ def extractDoiFromCitation(citation):
         else:
             yield f
             
-doiexample = """Revell, L. J. (2012) phytools: An R package for phylogenetic comparative biology (and other things). Methods Ecol. Evol. 3 217-223. doi:10.1111/j.2041-210X.2011.00169.x
-Xiaoyong Sun, Kai Wu, Dianne Cook.                PKgraph: An R package for graphically diagnosing population pharmacokinetic models.                Computer Methods and Programs in Biomedicine. May 7, 2011.                 doi:10.1016/j.cmpb.2011.03.016.
-Fang H. dcGOR: an R package for analysing ontologies and protein domain annotations. PLoS Computational Biology 10(10):e1003929, 2014. http://dx.doi.org/10.1371/journal.pcbi.1003929
-"""
-doianswer = ["10.1111/j.2041-210X.2011.00169.x", "10.1016/j.cmpb.2011.03.016", "10.1371/journal.pcbi.1003929"]
-assert list(extractDoiFromCitation(doiexample)) == doianswer, "extractDoiFromCitation failed: " + " ".join(list(extractDoiFromCitation(doiexample)))
 
 def fixDoi(doi):
     if "10" in doi:
         return "10" + "10".join(doi.split("10")[1:])
     else:
         return doi
-
-assert fixDoi("http://dx.doi.org/10.4.4.2/hello/10thousa k") == "10.4.4.2/hello/10thousa k", "fixDoi test #1 failed " + fixDoi("http://dx.doi.org/10.4.4.2/hello/10thousa k")
-assert fixDoi("blorp") == "blorp", "fixDoi test #2 failed " + fixDoi("blorp")
 
 def saveMetadata(pkgDescription, pkgWebscrape, conn):
     """Save metadata information we've scraped about packages into database tables: packages, citations, tags, staticdeps"""
@@ -229,14 +221,17 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
         # Write whatever citation information we have into the citations table
         if "bibtex_citations" in pkgWebscrape[rec] and len(pkgWebscrape[rec]["bibtex_citations"] ) > 0:
             bibtex = pkgWebscrape[rec]["bibtex_citations"]
-            for bib in bibtex:
+            citations = [cite.strip() for cite in pkgWebscrape[rec]["citation"].split("\n\n") if cite.strip() != ""]
+            
+            for (index, bib) in enumerate(bibtex):
                 doi    = fixDoi(extractBibtexField(bib,"doi"))
                 year   = extractBibtexField(bib,"year")
                 title  = extractBibtexField(bib,"title")
                 author = extractBibtexField(bib,"author")
-                citetext = (author + " (" + year + "). " + title + ".").replace("..",".")
+                citetext = citations[index % len(citations)] 
+                citepattern = re.sub("R package version \d.*?,", "R package version %,", citetext)
                 
-                rows = conn.execute("select * from citations where package_name=? and citation = ?;", (rec, citetext))
+                rows = conn.execute("select * from citations where package_name=? and citation like ?;", (rec, citepattern))
                 if len(list(rows)) == 0:
                     conn.execute("insert into citations (package_name, citation, title, author, year, doi, canonical, doi_given) " + \
                                  " values (?,?,?,?,?,?,?,?)", \
@@ -245,6 +240,8 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
         elif "citation" in pkgWebscrape[rec] and pkgWebscrape[rec]["citation"] != "HTTP Error 404: Not Found":
             citations = [cite.strip() for cite in pkgWebscrape[rec]["citation"].split("\n\n") if cite.strip() != ""]
             citations2 = []
+            
+            # Pair citations with their embedded DOIs, if they exist
             for cite in citations:
                 dois = list(extractDoiFromCitation(cite))
                 if len(dois) > 0:
@@ -252,6 +249,8 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
                         citations2.extend([(cite, doi)])
                 else:
                     citations2.extend([(cite,"")])    
+            
+            # Then write the pairs to the database
             for (cite,doi) in citations2:
                 citepattern = re.sub("R package version \d.*?,", "R package version %,", cite)
                 rows = conn.execute("select * from citations where package_name=? and citation like ?;", (rec, citepattern))
