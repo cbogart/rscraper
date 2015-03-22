@@ -12,7 +12,7 @@ import rscraper.crossref
 
 class RscraperTesting(unittest.TestCase):
 
-    interestingPackages = ["metafor","testthat","Rcpp","ndl", "a4Base","a4Preproc","abc", "pmclust", "A3", "SQUADD", "farms", "XDE", "zoo"]
+    interestingPackages = ["metafor","testthat","Rcpp","ndl", "a4Base","aroma.light", "a4Preproc","abc", "rfUtilities", "pmclust", "A3", "SQUADD", "farms", "XDE", "zoo"]
 
     def jmemo(self, item, filen):
         try:
@@ -23,6 +23,8 @@ class RscraperTesting(unittest.TestCase):
                 i = item()
                 f.write(json.dumps(i, indent=4))
                 return i
+
+    def oneDbResultEquals(self,conn,qry,a): return self.oneDbResultEqual(conn,qry,a)
 
     def oneDbResultEqual(self, conn, qry, a):
         result = conn.execute(qry)

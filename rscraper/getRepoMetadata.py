@@ -35,7 +35,7 @@ def getBioconductorWebscrape(limit = 99999, limitTo = []):
         views = detail.find("td", text="biocViews").find_parent().find_all("a")
         viewlist = [v.get_text() for v in views]
         #citation = do_or_error(lambda: detail.find("div", id="bioc_citation").get_text())
-        citation = do_or_error(lambda: scrapeCitationBioc(name), msg="")
+        citation = do_or_error(lambda: scrapeCitationBioc(name), msg={"citations": "HTTP Error 404: Not Found"})
         titleparent = do_or_error(lambda: detail.find("h1").find_parent())
         title = do_or_error(lambda: titleparent.find("h2").get_text())
         authorlist = do_or_error(lambda: titleparent.find("p", text = re.compile(r'Author:.*')).get_text().replace("Author: ","").strip())
@@ -49,6 +49,7 @@ def getBioconductorWebscrape(limit = 99999, limitTo = []):
 def scrapeCitationBioc(name):
     citeurl = "http://bioconductor.org/packages/release/bioc/citations/" + urllib.quote(name) + "/citation.html"
     print citeurl
+    time.sleep(1)
     citepage = BeautifulSoup(urllib2.urlopen(citeurl).read())
     # To Do:
     # More structured citation info available from https://hedgehog.fhcrc.org/bioconductor/trunk/madman/Rpacks/  (package)   /inst/CITATION

@@ -37,6 +37,11 @@ class TestScopus(RscraperTesting):
         enable_scopus_proxy(False)
         self.test_findCanonicalFromAuthorTitle()
         
+    def test_escapeAnd(self):
+        self.assertEquals(rscraper.scopus.escapeAnd('this and that'), 'this "and" that')
+        self.assertEquals(rscraper.scopus.escapeAnd('this hand that or the other'), 'this hand that "or" the other')
+        self.assertEquals(rscraper.scopus.escapeAnd('Let them eat cake and'), 'Let them eat cake "and"')
+            
     def test_findCanonicalFromAuthorTitle(self):
         canon = findCanonicalFromAuthorTitle("Hadley Wickham","testthat: Get Started with Testing", loadCredentials("credentials.json"))
         self.assertEqual(scopusIdFromScopusResult(canon), "84883222645")
