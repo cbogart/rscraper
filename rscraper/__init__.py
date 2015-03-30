@@ -10,3 +10,4 @@ from gitscraper import queryRandomProject, queryParticularProject
 from crossref import fillInDois, citationtext2doi, createSyntheticCitations
 from scopus import findCanonicalFromDoi,  doScopusLookup
 from utils import stripParentheticals, justAlphabetics, similar
+from findAuthors import findAuthors
