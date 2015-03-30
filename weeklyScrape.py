@@ -5,6 +5,12 @@ import json
 
 
 def jmemo(item, filen):
+    """Persistently memoize a function returning a json object
+
+    @param item A function that is expensive to compute, and returns json
+    @param filen A filename to use for memoization
+    @returns The contents of the file; if it does not exist, it is created from item()
+    """
     try:
         with open(filen + ".json", "r") as f:
             return json.loads(f.read())
@@ -15,11 +21,20 @@ def jmemo(item, filen):
             return i
 
 def createCranBiocGitTables():
-        # Populate in order of least to highest priority:
-        # i.e. if we have a project both in Github and CRAN,
-        # the cran information takes priority, so write it in
-        # last overriding whatever we found on github.
+        """Create a table of R packages from CRAN, Bioconductor, and Github.
 
+        Use previously-scraped information about github R projects to populate
+        a table of packages ("packages" are defined as github projects that are
+        in R and contain a DESCRIPTION file).
+        
+        Overwrite that information with packages scraped from Bioconductor, then
+        again from CRAN.  Thus Cran takes priority over Bioconductor, and both
+        take priority over Github.
+
+        Finally, fill in citation information as best as can be scraped from
+        the Bioconductor and CRAN sites, and then look them up in Scopus to find
+        out how often they have been cited.
+        """
         conn = getConnection("repoScrape.db")
         createMetadataTables(conn)
 
@@ -45,20 +60,4 @@ def createCranBiocGitTables():
 
 if __name__ == '__main__':
     conn = getConnection("repoScrape.db")
-    ##cur = conn.execute("select * from citations where doi_confidence < 1 and package_name = 'metafor' and doi_confidence > 0 order by random() limit 1;")
-    #for c in cur:
-    #    print c["citations.citation"]
-    #    print "Calling with ", c["citations.author"], c["citations.title"], c["citations.doi_confidence"]
-    #    testScopusNames(c["citations.author"], c["citations.title"])
-    #crossref.fillInAuthorTitleFromPackage(conn)
-    #rscraper.createSyntheticCitations(conn)
     createCranBiocGitTables()
-    #doScopusLookup(conn)
-    #adegenet = getRepoMetadata.scrapeCitationCran("adegenet")
-    #print json.dumps(adegenet, indent=4)
-    #fillInDois(conn)
-   
-    #testScopus()
-    
-    
-    
