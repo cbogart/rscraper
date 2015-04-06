@@ -12,7 +12,7 @@ import rscraper.crossref
 
 class RscraperTesting(unittest.TestCase):
 
-    interestingPackages = ["metafor","testthat","Rcpp","ndl", "a4Base","aroma.light", "a4Preproc","abc", "rfUtilities", "pmclust", "A3", "SQUADD", "farms", "XDE", "zoo"]
+    interestingPackages = ["metafor","testthat","Rcpp","ndl", "a4Base","aroma.light", "pegas", "a4Preproc","abc", "rfUtilities", "pmclust", "A3", "SQUADD", "farms", "XDE", "zoo"]
 
     def jmemo(self, item, filen):
         try:

@@ -76,7 +76,7 @@ def findCanonicalFromScopusId(scopus_id, credentials):
     
 
             
-def escapeAnd(q): return re.sub(r"\band\b", '"and"', re.sub("\bor\b", '"or"', q, flags=re.I), flags=re.I)
+def escapeAnd(q): return re.sub(r"\band\b", '"and"', re.sub(r"\bor\b", '"or"', q, flags=re.I), flags=re.I)
             
 def findCanonicalFromAuthorTitle(author, title, credentials):
     try:

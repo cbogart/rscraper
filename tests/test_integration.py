@@ -59,7 +59,10 @@ class RscraperTesting(rscraperTesting.RscraperTesting):
         checkCiteAtLeast("metafor", "scopus_citedby_count", 498)
         checkCite("zoo", "scopus_id", "21244459873")
         checkCiteAtLeast("zoo", "scopus_citedby_count", 41)
-
+        
+        #Check dependency scraping
+        pegasDeps = self.oneDbResult(conn, 'select group_concat(depends_on) from staticdeps where package_name="pegas";')
+        self.assertEqual(set(pegasDeps.split(",")), set(["ape", "adegenet", "R", "graphics", "utils"]))
         
         
     @attr("integration", "internet")

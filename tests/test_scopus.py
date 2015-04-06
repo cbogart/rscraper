@@ -18,10 +18,10 @@ class TestScopus(RscraperTesting):
         canon = findCanonicalFromDoi("10.1016/j.envsoft.2011.09.008", loadCredentials("credentials.json"))
         self.assertEqual(scopusIdFromScopusResult(canon), "84855561999")
         self.assertEqual(citeUrlFromScopusResult(canon), "http://www.scopus.com/inward/citedby.url?partnerID=HzOxMe3b&scp=84855561999")
-        self.assertEqual(citeCountFromScopusResult(canon), "75")
+        self.assertGreaterEqual(citeCountFromScopusResult(canon), "75")
         self.assertEqual(citeTitleFromScopusResult(canon), "Openair - An r package for air quality data analysis")
         self.assertEqual(citeCreatorFromScopusResult(canon), "Carslaw, D.C.")
-        self.assertEqual(totalCountScopusResults(canon), "1")
+        self.assertGreaterEqual(totalCountScopusResults(canon), "1")
         
     @attr("scopus","internet")
     def test_findCanonicalFromScopusId_real(self):
@@ -45,16 +45,16 @@ class TestScopus(RscraperTesting):
     def test_findCanonicalFromAuthorTitle(self):
         canon = findCanonicalFromAuthorTitle("Hadley Wickham","testthat: Get Started with Testing", loadCredentials("credentials.json"))
         self.assertEqual(scopusIdFromScopusResult(canon), "84883222645")
-        self.assertEqual(citeCountFromScopusResult(canon), "1")
+        self.assertGreaterEqual(citeCountFromScopusResult(canon), "1")
         canon = findCanonicalFromAuthorTitle("Wolfgang Viechtbauer","Conducting meta-analyses in R with the metafor package", loadCredentials("credentials.json"))
         self.assertEqual(scopusIdFromScopusResult(canon), "77958110812")
-        self.assertEqual(citeCountFromScopusResult(canon), "498")
+        self.assertGreaterEqual(citeCountFromScopusResult(canon), "498")
         canon = findCanonicalFromAuthorTitle("Dirk Eddelbuettel and Romain Fran\ccois","Rcpp: Seamless R and C++ Integration", loadCredentials("credentials.json"))
         self.assertEqual(scopusIdFromScopusResult(canon), "79961240792")
-        self.assertEqual(citeCountFromScopusResult(canon), "55")
+        self.assertGreaterEqual(citeCountFromScopusResult(canon), "55")
         canon = findCanonicalFromAuthorTitle("Achim Zeileis and Gabor Grothendieck","zoo: S3 Infrastructure for Regular and Irregular Time Series", loadCredentials("credentials.json"))
         self.assertEqual(scopusIdFromScopusResult(canon), "21244459873")
-        self.assertEqual(citeCountFromScopusResult(canon), "41")
+        self.assertGreaterEqual(citeCountFromScopusResult(canon), "41")
         
         
 """

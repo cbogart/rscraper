@@ -58,6 +58,15 @@ class TestRepoMetadata(RscraperTesting):
         self.assertIn("Bayesian", cws["abc"]["views"])
         self.assertIn("Scott Fortmann-Roe (2013). Accurate", cws["A3"]["citation"])
         
+    def test_get_cran_webscrape_memoized(self):
+        cws = self.jmemo(lambda:getCranWebscrape(limitTo = self.interestingPackages), "tests/cranwebtest")
+        self.assertIn("The package implements several", cws["abc"]["description"])
+        self.assertEqual( cws["abc"]["repository"] , "cran")
+        self.assertEqual( cws["abc"]["title"] , "Tools for Approximate Bayesian Computation (ABC)")
+        self.assertEqual( cws["abc"]["url"] , "http://cran.r-project.org/web/packages/abc/index.html")
+        self.assertIn("Bayesian", cws["abc"]["views"])
+        self.assertIn("Scott Fortmann-Roe (2013). Accurate", cws["A3"]["citation"])
+        
         
         
     def test_get_pretty_bibtex_authors(self):
@@ -204,16 +213,7 @@ class TestRepoMetadata(RscraperTesting):
         self.assertEquals(fixDoi("blorp"),"blorp")
        
         
-    def test_get_cran_webscrape_memoized(self):
-        cws = self.jmemo(lambda:getCranWebscrape(limitTo = self.interestingPackages), "tests/cranwebtest")
-        self.assertIn("The package implements several", cws["abc"]["description"])
-        self.assertEqual( cws["abc"]["repository"] , "cran")
-        self.assertEqual( cws["abc"]["title"] , "Tools for Approximate Bayesian Computation (ABC)")
-        self.assertEqual( cws["abc"]["url"] , "http://cran.r-project.org/web/packages/abc/index.html")
-        self.assertIn("Bayesian", cws["abc"]["views"])
-        self.assertIn("Scott Fortmann-Roe (2013). Accurate", cws["A3"]["citation"])
-
-
+ 
     #def test_recreate_table(self):
         # self.assertEqual(expected, recreateTable(conn, table, flds))
         #assert False # TODO: implement your test here

@@ -275,6 +275,7 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
             
             # Now save static dependencies
             imports = list(set(pkgDescription[rec].get("Imports", []) + 
+                               pkgDescription[rec].get("Depends", []) + 
                                pkgDescription[rec].get("Requires", [])))
             imports = [i for i in imports if legalimport.match(i)]
             conn.executemany("insert into staticdeps (package_name, depends_on) values (?,?);",
