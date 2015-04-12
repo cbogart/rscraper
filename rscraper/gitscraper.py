@@ -8,6 +8,7 @@ import random
 import datetime
 import urllib
 from analyzeDeps import analyzeImports, parseDESCRIPTION
+import pdb
 
 # Grab whatever online stuff gives a basic package list/minimal metadata and put it in this filename
 # Git:  search list of (new?) packages, OR use ghtorrent.
@@ -110,9 +111,11 @@ class GitProjectInfo:
                     desc = parseDESCRIPTION(f.readlines())
                     return desc[desc.keys()[0]]
             except IOError, e:
+                #pdb.set_trace()
                 print "Error getting project description: ", self.cachefilename("DESCRIPTION"), str(e)
                 return { "error": str(e)}
         except Exception, e:
+            # pdb.set_trace()
             print "Error getting project description: ", self.cachefilename("DESCRIPTION"), str(e)
             return { "error": str(e)}
 

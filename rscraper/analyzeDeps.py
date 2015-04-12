@@ -37,7 +37,7 @@ def parseSections(txt):
     chunk = []
     for line in txt:
         endless = line.replace("\n","")
-        if endless.strip() == "":
+        if endless == "":   #  old way: if endless.strip() == "":
             if (len(chunk) > 0): 
                 yield chunk
             chunk = []
@@ -49,7 +49,7 @@ def parseSections(txt):
 def parseFields(chunk):
     fld = ""
     for line in chunk:
-        if line[0] not in (" ", "\t"):
+        if re.match(r"""\S+:""", line):   # old way: line[0] not in (" ", "\t"):
             if (fld != ""):
                 yield fld
                 fld = ""
@@ -74,17 +74,16 @@ def parseDESCRIPTION(txt):
                 restList = [removeParenthetical(r.strip()) for r in rest.split(",")]
             except:
                 print(rest)
-                pdb.set_trace()
-                print(rest)
+                #pdb.set_trace()
+                #print(rest)
 
             thissection[code] = restList
         try:
             db[thissection["Package"][0]] = thissection
         except:
             db["UNKNOWN"] = thissection
-            print "couldn't parse Package name in description"
-            print thissection
-
+            # Some packages don't mention the package name in the DESCRIPTIon file,
+            # but it's often OK; we can tell from the context what the name is.
     return db
 
 def analyzeImportsManyDescriptions(txt):

@@ -3,7 +3,9 @@ import pdb
 
 def priority(row):
     priority = 10.0 if "api.github.com/repos/cran/" in row["gitprojects.url"] else \
-               7.0  if "api.github.com/repos/Bioconductor/" in row["gitprojects.url"] else \
+               8.0  if "api.github.com/repos/Bioconductor/" in row["gitprojects.url"] else \
+               7.0  if "api.github.com/repos/ropensci/" in row["gitprojects.url"] else \
+               6.0  if "api.github.com/repos/rforge/" in row["gitprojects.url"] else \
                row["gitprojects.forks_count"]*1.0/1000+3 if row["gitprojects.forked_from"] == "" else \
                1
     return priority
