@@ -37,11 +37,10 @@ def createCranBiocGitTables():
         """
         conn = getConnection("repoScrape.db")
         createMetadataTables(conn)
-
+        clearTaskViews(conn)
         print "Git..."
-        gws = extractGitWebscrape(conn)
         gd = extractGitDescription(conn)
-        saveMetadata(gd,gws,conn)
+        saveMetadata(gd,makeGitPseudoWebscrape(gd),conn)
         print "Bioconductor...****************************"
         bws = jmemo(lambda:getBioconductorWebscrape(), "bioc_web_scrape")
         biod = jmemo(lambda:getBioconductorDescription(), "bioc_desc_scrape")
@@ -61,3 +60,6 @@ def createCranBiocGitTables():
 if __name__ == '__main__':
     conn = getConnection("repoScrape.db")
     createCranBiocGitTables()
+    #import pdb
+    #pdb.set_trace()
+    #rscraper.gitscraper.backfillOwnerType(loadCredentials("credentials.json"), conn)

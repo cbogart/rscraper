@@ -53,7 +53,7 @@ def parseFields(chunk):
             if (fld != ""):
                 yield fld
                 fld = ""
-        fld = fld + line.strip()
+        fld = fld + line.strip() + " "
     if fld != "": 
         yield fld
 

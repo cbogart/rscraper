@@ -42,7 +42,7 @@ def flattenJson(jsonobj):
 def fillInAuthorTitleFromPackage(conn):
     cites = conn.execute("select * from packages left join citations on name=package_name where (citations.title = '' or citations.title is null);")
     for cite in cites:
-        faketitle = cite["packages.name"] + ": " + cite["packages.title"].replace("\n"," ").replace("  "," ")
+        faketitle = cite["packages.name"] + ": " + unicode(cite["packages.title"]).replace("\n"," ").replace("  "," ")
         conn.execute("update citations set title=?, author=? where citation=? and package_name=?;",
                       (faketitle, cite["packages.authors"], cite["citations.citation"], cite["packages.name"]))
     conn.commit()

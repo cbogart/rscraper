@@ -5,6 +5,7 @@ import sqlite3
 import time
 import urllib2
 import urllib
+import utils
 from analyzeDeps import parseDESCRIPTION
 from bs4 import BeautifulSoup
 
@@ -210,14 +211,19 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
         conn.execute("insert or ignore into packages (name) values (?)", (rec,))
 
         # and now overwrite the existing record with the new information
-        conn.execute("update packages set " + 
+        try:
+            conn.execute("update packages set " + 
                 "title=?, description=?, authors=?, repository=?, url=? where name=?;",
                  (pkgWebscrape[rec]["title"], 
-                 pkgWebscrape[rec]["description"], 
+                 utils.ensure_unicode(pkgWebscrape[rec]["description"]), 
                  pkgWebscrape[rec]["authors"] if "authors" in pkgWebscrape[rec] else "",
                  pkgWebscrape[rec]["repository"], 
                  url,
                  rec))
+        except Exception, e:
+            print str(e), pkgWebscrape[rec]
+            pdb.set_trace()
+            print str(e)
         
         # Write whatever citation information we have into the citations table
         if "bibtex_citations" in pkgWebscrape[rec] and len(pkgWebscrape[rec]["bibtex_citations"] ) > 0:
@@ -283,14 +289,20 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
 
         # Finally, add information about what task view the package is in to the tags table
         if "views" in pkgWebscrape[rec] and len(pkgWebscrape[rec]["views"]) > 0:
-            conn.execute("delete from tags where package_name = ? " + \
-                    " and tagtype ='taskview';", (rec,))
+            # Don't delete previous tag information; we want to combine what we learn
+            # from different repositories
+            
+            #conn.execute("delete from tags where package_name = ? " + \
+            #        " and tagtype ='taskview';", (rec,))
             repo = pkgWebscrape[rec]["repository"]
             conn.executemany("insert into tags (package_name, tag, tagtype) values (?,?,'taskview');",
                 [(rec, repo + "/" + taskview) for taskview in pkgWebscrape[rec]["views"]])
 
         conn.commit()
 
+def clearTaskViews(conn):
+    conn.execute("delete from tags where tagtype='taskview';")
+    conn.commit()
 
 def getCranDescription():
     directory = "http://cran.r-project.org/src/contrib/PACKAGES"
