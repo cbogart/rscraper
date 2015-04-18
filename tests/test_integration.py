@@ -69,6 +69,44 @@ class RscraperTesting(rscraperTesting.RscraperTesting):
     def test_metadataPopulate_bioconductor_real(self):
         self.helper_test_metadataPopulate_bioconductor(useInternet=True)
 
+    @attr("internet")
+    def test_metadataPopulate_github(self):
+        conn = self.getconn()
+        
+        This will not work.  We have to query github as part of this process,
+        because otherwise extractGitDescription is working from an empty database.
+        Querying git is not set up to where we can cache the results easily.
+        
+        createMetadataTables(conn, eraseCitations = True)
+        clearTaskViews(conn)
+        gd = extractGitDescription(conn)
+        gw = makeGitPseudoWebscrape(gd)
+        saveMetadata(gd,gw,conn)
+        
+        createMetadataTables(conn, eraseCitations=True)
+    
+        if useInternet:
+            biod = getBioconductorDescription()
+            bws = getBioconductorWebscrape(limitTo = self.interestingPackages)
+        else: 
+            biod = self.jmemo(lambda:getBioconductorDescription(), "tests/biodesctest")
+            bws = self.jmemo(lambda:getBioconductorWebscrape(limitTo = self.interestingPackages), "tests/biowebtest")
+            
+        saveMetadata(biod, bws, conn)
+        
+        self.assertEquals(self.oneDbResult(conn,"select group_concat(repository) from packages where repository != 'cran';"), 
+                          "bioconductor,bioconductor,bioconductor,bioconductor,bioconductor,bioconductor")
+        self.assertEquals(self.oneDbResult(conn, "select authors from packages where name='a4Preproc';"), 
+                          "Willem Talloen, Tobias Verbeke")
+        self.oneDbResultEquals(conn, "select count(*) from citations where package_name='aroma.light';", "0")
+        
+        rscraper.crossref.extractAuthorTitleFromCitations(conn)
+        
+        self.oneDbResultEquals(conn, "select title from citations where package_name='XDE';",
+                         "A Bayesian model for cross-study differential gene expression")
+
+        rscraper.crossref.fillInAuthorTitleFromPackage(conn)
+
     @attr("integration")
     def test_metadataPopulate_bioconductor(self):
         self.helper_test_metadataPopulate_bioconductor(useInternet=False)

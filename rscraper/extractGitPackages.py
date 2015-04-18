@@ -31,6 +31,10 @@ def extractGitDescription(conn):
              if p["gitprojects.ownertype"] == "Organization" \
              and p["gitprojects.owner"] != "rforge" else []
 
+        #if "forge" in p["gitprojects.url"]:
+        ##    print p["gitprojects.url"]
+        #    pdb.set_trace()
+            
         # If the DESCRIPTION file is in a subdirectory, use that as the package name
         #  (unless it's "pkg", which is an r-forge convention)
         #  (NB the query also excludes ones in directories called "tags", because
@@ -66,6 +70,8 @@ def extractGitDescription(conn):
                     desc[name]["authors"] = desc[name]["Authors@R"]
                 else:
                     desc[name]["authors"] = ""
+            if p["gitprojects.owner"] == "rforge":
+                desc[name]["repository"] = "r-forge" 
             if "user" not in desc[name]:
                 desc[name]["user"] = prj.username()
             if "Title" not in desc[name]:
@@ -81,50 +87,13 @@ def extractGitDescription(conn):
     return desc
 
 
-# need Version
-def oldExtractGitDescription(conn):
-    pkgs = conn.execute("select gitprojects.*, group_concat(distinct(gitimports.package_name)) myimports from gitprojects " + \
-            "left join gitimports on gitimports.project_id=gitprojects.id where gitprojects.id in " + \
-            "(select project_id from gitfiles where path='DESCRIPTION' or path = 'pkg/DESCRIPTION') group by gitprojects.id;")
-    desc = {}
-    for p in pkgs:
-        name = p["gitprojects.name"]
-        prj = GitProjectInfo(name, p["gitprojects.id"], p["gitprojects.url"])
-        descinfo = prj.projectDescription()
-        pri = priority(p)
-        if "error" in descinfo:
-            print "Couldn't read DESCRIPTION for git project ", name
-            descinfo = {
-              "Package": [name],
-              "Version": "",
-              "Title": [p["gitprojects.description"]],
-              #"Imports": p["myimports"].split(","),
-              "repository": "git",
-              "user": prj.username(),
-              "URL": ["http://github.com/" + prj.username() + "/" + name],
-              "priority": pri
-            }
-        if name not in desc or desc[name]["priority"] < pri:
-            desc[name] = descinfo
-        desc[name]["priority"] = pri
-        if "authors" not in desc[name]:
-            if "Author" in descinfo:
-                desc[name]["authors"] = descinfo["Author"]
-            else:
-                desc[name]["authors"] = ""
-        if "user" not in desc[name]:
-            desc[name]["user"] = prj.username()
-        if "URL" not in desc[name] or desc[name]["URL"] == "" or desc[name]["URL"] == [""]:
-            desc[name]["URL"] = ["http://github.com/" + prj.username() + "/" + name]
-    return desc
-
 def makeGitPseudoWebscrape(desc):
     ws = {}
     for name in desc:
         
         ws[name] = {
             "title": desc[name]["Title"][0].decode("utf-8"),
-            "repository": "r-forge" if "rforge" in desc[name]["views"] else "git",
+            "repository": desc[name].get("repository", "git"),
             "priority": desc[name]["priority"],
             "user": desc[name]["user"],
             "URL": desc[name]["URL"][0],

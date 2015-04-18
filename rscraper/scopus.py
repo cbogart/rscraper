@@ -181,8 +181,12 @@ def dumpScopusInfo(result):
         print ""
      
 def doScopusRefresh(conn, creds):
-    cur = conn.execute("select distinct(scopus_id) from citations where length(scopus_id) > 0 and " +\
-                       "scopus_id != 'Result set was empty' and scopus_lookup_date < datetime('now', ' -6 days');")
+    cur = conn.execute(r"""
+          select distinct(scopus_id) from citations 
+          where length(scopus_id) > 0 and 
+            scopus_id != 'Result set was empty' and 
+            scopus_lookup_date < datetime('now', '-6 days') limit 50;""")
+    
     for c in cur:
         print "Refreshing citation for scopus id:", c["citations.scopus_id"]
         try:
@@ -198,7 +202,6 @@ def doScopusRefresh(conn, creds):
     
 def doScopusLookup(conn, limitTo=[]):
     creds = rscraper.loadCredentials("credentials.json")
-    
     doScopusRefresh(conn,creds)
     
     cur = conn.execute("select * from citations where (scopus_lookup_date is null or scopus_lookup_date = '')" +\
@@ -222,7 +225,8 @@ def doScopusLookup(conn, limitTo=[]):
     for c in cur:
         if limitTo and c["citations.package_name"] not in limitTo:
             continue
-        print "Scopus lookup using author/title for ", c["citations.package_name"], "auth:", c["citations.author"], "title:", c["citations.title"]
+        print "Scopus lookup using author/title for ", c["citations.package_name"], "auth:", \
+                c["citations.author"], "title:", c["citations.title"]
         if c["citations.title"].startswith("Error:") or len(c["citations.title"]) < 7:
             print "    Skipping this one"
             continue

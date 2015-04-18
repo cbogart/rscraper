@@ -184,9 +184,9 @@ def insertRepos(repos, conn, excludeUrls):
                   repo.owner.login,
                   repo.owner.type \
                   ))
-        elif repo.url in excludeUrls and ymdhms2epoch(str(repo.pushed_at)) > ymdhms2epoch(excludeUrls[repo.url]) + (7*24*3600):
+        elif repo.url in excludeUrls and excludeUrls[repo.url] is not None and ymdhms2epoch(str(repo.pushed_at)) > ymdhms2epoch(excludeUrls[repo.url]) + (7*24*3600):
             print "Marking", fullname, "for update because", repo.pushed_at, ">", excludeUrls[repo.url]
-            conn.execute("update gitprojects set cb_last_scan='' where url=?;", (repo.url,))
+            conn.execute("update gitprojects set cb_last_scan=null where url=?;", (repo.url,))
         else:
             print "Skipping", fullname
         conn.commit()
@@ -222,7 +222,8 @@ class CaughtUpException(Exception):
 
 def getRandomProject(conn):
     cur = conn.cursor()
-    cur.execute("select * from gitprojects where cb_last_scan is NULL and (error is null or error = '') and deleted = '0'");
+    cur.execute(r"""select * from gitprojects where 
+              cb_last_scan is NULL and (error is null or error = '') and deleted = '0'""");
     rows = cur.fetchall()
     if len(rows) == 0:
         raise CaughtUpException("NO random project could be chosen -- none match the criterion.")
@@ -299,7 +300,8 @@ def backfillOwnerType(credentials, conn):
 #    cb 3/9/2015
 #
 def saveProjectMetadata(projinf, projmeta, conn):
-    conn.execute("update gitprojects set owner=?, ownertype=?, pushed_at=?, forks_count=?, watchers_count=?,stargazers_count=?,network_count=?  where id=?", \
+    conn.execute(r"""update gitprojects set owner=?, ownertype=?, pushed_at=?, 
+            forks_count=?, watchers_count=?,stargazers_count=?,network_count=?  where id=?""", \
                (projinf.username(), projmeta["repo"].owner.type,
                 str(projmeta["repo"].pushed_at), projmeta["repo"].forks_count, projmeta["repo"].watchers_count, \
                projmeta["repo"].stargazers_count, projmeta["repo"].network_count, projinf.project_id))

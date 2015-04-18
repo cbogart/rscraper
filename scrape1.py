@@ -10,7 +10,9 @@ conn = getConnection("repoScrape.db")
 with open("credentials.json", "r") as f:
     creds = json.loads(f.read())
 
-dates = conn.execute("select date(created_at) created from gitprojects group by date(created_at) having count(*) > 5 order by created_at desc;")
+dates = conn.execute(r"""select date(created_at) created from gitprojects 
+                        group by date(created_at) having count(*) > 5 
+                        order by created_at desc;""")
 delta = datetime.timedelta(days=1)
 d = dateutil.parser.parse(dates.next()["created"]).date()
 while d <= datetime.datetime.today().date():
