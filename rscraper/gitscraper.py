@@ -237,11 +237,12 @@ def throttleGitAccess(git, margin=75):
         waitseconds = git.rate_limiting_resettime - time.time()
         awaken_at = (datetime.datetime.now() + datetime.timedelta(seconds = waitseconds)).strftime("%H:%M")
         print "Waitseconds = ", waitseconds, "ratelimiting=", git.rate_limiting
-        print "+---------------------------->"
-        print "|Sleeping until ", awaken_at
-        time.sleep(waitseconds+10)
-        print "|Back to the grind!"
-        print "+---------------------------->"
+        if (waitseconds > 10):
+            print "+---------------------------->"
+            print "|Sleeping until ", awaken_at
+            time.sleep(waitseconds+10)
+            print "|Back to the grind!"
+            print "+---------------------------->"
 
 def getProjectMetadata(projinf, git):
     repo = git.get_user(projinf.username()).get_repo(projinf.name)
@@ -367,6 +368,7 @@ def populateProjectMetadata(projinf, conn, git):
                 if (fileinf["error"] != ""): error = fileinf["error"]
                 filenum += 1
             elif leaf.path.split("/")[-1] == "CITATION":
+                print "    file ", leaf.path
                 queryFile(projmeta["repo"], projinf, leaf.path, git) 
     except UnknownObjectException, e:
         error = str(e.status) + ": " + e.data["message"]
