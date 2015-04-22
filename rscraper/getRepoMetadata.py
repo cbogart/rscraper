@@ -201,7 +201,8 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
     for rec in pkgWebscrape:
 
         # Fix up the URL: github URLs may be in a weird format (api.github instead of just github)
-        url = pkgDescription[rec].get("URL", [""])
+        if rec in pkgDescription: 
+            url = pkgDescription[rec].get("URL", [""])
         if not isinstance(url, str):  url = url[0]
         if url == "": url = pkgWebscrape[rec].get("url", "")
         if "/api.github" in url:

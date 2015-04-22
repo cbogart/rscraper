@@ -322,13 +322,14 @@ def queryFile(repo, projinf, path, git):
        throttleGitAccess(git)
        content = repo.get_contents("/" + urllib.quote(path.encode('utf-8'))).decoded_content
        cachename = getCachename(repo.owner.login, repo.name, path)
-       if (not path.endswith("DESCRIPTION")):
+       if (not (path.endswith("DESCRIPTION") or path.endswith("CITATION"))):
            cachename = "/tmp/temp.r"
        if not os.path.exists(os.path.dirname(cachename)):
            os.makedirs(os.path.dirname(cachename))
        with open(cachename, "w") as f:
            f.write(content)
-       (language, imports) = analyzeImports(cachename)
+       if (not path.endswith("CITATION")):
+           (language, imports) = analyzeImports(cachename)
    except UnknownObjectException, e:
        error = str(e.status) + ": " + e.data["message"]
        print "    ERROR reading ", path, projinf.username(), projinf.name, error
@@ -351,29 +352,31 @@ def updateProjectScanStatus(projinf, error, conn):
    conn.commit()
 
 def populateProjectMetadata(projinf, conn, git):
-   throttleGitAccess(git)
-   print "Scanning ", str(projinf)
-   error = ""
-   try:
-       projmeta = getProjectMetadata(projinf, git)
-       saveProjectMetadata(projinf, projmeta, conn)
-       filenum = 1
-       for leaf in projmeta["tree"].tree:
-           if hasDependencyInfo(leaf.path):
-               print "    file ", leaf.path
-               fileinf = queryFile(projmeta["repo"], projinf, leaf.path, git) 
-               saveFileImportInfo(projinf, fileinf, leaf, conn, filenum)
-               if (fileinf["error"] != ""): error = fileinf["error"]
-               filenum += 1
-   except UnknownObjectException, e:
-       error = str(e.status) + ": " + e.data["message"]
-       print "    ERROR reading project ", projinf.username(), projinf.name, error
-   except Exception, e:
-       error = str(e)[0:100]
-       print "    ERROR reading project ", projinf.username(), projinf.name, error
-       print traceback.format_exc()
-   finally:
-       updateProjectScanStatus(projinf, error, conn)
+    throttleGitAccess(git)
+    print "Scanning ", str(projinf)
+    error = ""
+    try:
+        projmeta = getProjectMetadata(projinf, git)
+        saveProjectMetadata(projinf, projmeta, conn)
+        filenum = 1
+        for leaf in projmeta["tree"].tree:
+            if hasDependencyInfo(leaf.path):
+                print "    file ", leaf.path
+                fileinf = queryFile(projmeta["repo"], projinf, leaf.path, git) 
+                saveFileImportInfo(projinf, fileinf, leaf, conn, filenum)
+                if (fileinf["error"] != ""): error = fileinf["error"]
+                filenum += 1
+            elif leaf.path.split("/")[-1] == "CITATION":
+                queryFile(projmeta["repo"], projinf, leaf.path, git) 
+    except UnknownObjectException, e:
+        error = str(e.status) + ": " + e.data["message"]
+        print "    ERROR reading project ", projinf.username(), projinf.name, error
+    except Exception, e:
+        error = str(e)[0:100]
+        print "    ERROR reading project ", projinf.username(), projinf.name, error
+        print traceback.format_exc()
+    finally:
+        updateProjectScanStatus(projinf, error, conn)
    
 
 def getCachename(user, repo, path):

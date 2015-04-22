@@ -25,3 +25,6 @@ try:
         queryRandomProject(conn, creds)
 except CaughtUpException:
     print "All caught up"
+
+# Check new downloads from R studio    
+downloadLatestRstudioLogs()

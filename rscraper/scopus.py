@@ -70,7 +70,7 @@ def findCanonicalFromDoi(doi, credentials):
 
 def findCanonicalFromScopusId(scopus_id, credentials):
     #http://api.elsevier.com/content/search/index:scopus?query=scopus-id(77951947707)&apiKey=blah
-    url=url_query.format(qry="scopus-id(" + scopus_id + ")", scopus=credentials["scopus"])
+    url=url_query.format(qry="scopus-id(" + str(scopus_id) + ")", scopus=credentials["scopus"])
     queryresult = scopus_proxy(url)
     return json.loads(queryresult)
     
@@ -185,15 +185,15 @@ def doScopusRefresh(conn, creds):
           select distinct(scopus_id) from citations 
           where length(scopus_id) > 0 and 
             scopus_id != 'Result set was empty' and 
-            scopus_lookup_date < datetime('now', '-6 days') limit 50;""")
+            scopus_lookup_date < datetime('now', '-13 days') limit 50;""")
     
     for c in cur:
         print "Refreshing citation for scopus id:", c["citations.scopus_id"]
         try:
             parsed = findCanonicalFromScopusId(c["citations.scopus_id"], creds)
             citedby_count = citeCountFromScopusResult(parsed)
-            conn.execute("update citations set scopus_lookup_date = datetime('now', 'localtime'), " +\
-                         "scopus_citedby_count=? where scopus_id=?;",
+            conn.execute(r"""update citations set scopus_lookup_date = datetime('now', 'localtime'), 
+                         scopus_citedby_count=? where scopus_id=?;""",
                          ((citedby_count, c["citations.scopus_id"])))
             conn.commit()
         except Exception, e:
