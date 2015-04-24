@@ -16,7 +16,8 @@ def extractGitDescription(conn):
     pkgs = conn.execute(r"""select gitprojects.*, f1.path descpath
             from gitfiles f1 
             left join gitprojects on f1.project_id=gitprojects.id
-            where f1.path like "%DESCRIPTION" and f1.path not like "%/tags/%";
+            where f1.path like "%DESCRIPTION" and f1.path not like "%/tags/%"
+            order by forks_count, stargazers_count desc;
             """)
     
     desc = {}
@@ -31,6 +32,10 @@ def extractGitDescription(conn):
              if p["gitprojects.ownertype"] == "Organization" \
              and p["gitprojects.owner"] != "rforge" else []
 
+        # Accrue information about task views based on organizations that have forked this package
+        if name in desc:
+            desc[name]["views"] = list(set(taskviews + desc[name].get("views",[])))
+            
         #if "forge" in p["gitprojects.url"]:
         ##    print p["gitprojects.url"]
         #    pdb.set_trace()

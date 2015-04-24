@@ -64,7 +64,16 @@ def importGhtorrentProjectCsv(fname, conn):
                 if (rownum%1000 == 0):
                     print "Wrote row ", rownum
                     conn.commit()    
+        addGitprojectsExtraColumns(conn)
         conn.commit()    
+
+def createFreshGitprojectsTable(conn):
+    conn.execute("create table gitprojects (id, url, owner_id, name, description, language, created_at, ext_ref_id, forked_from, deleted);")
+    addGitprojectsExtraColumns(conn)
+    conn.commit()
+    
+    
+def addGitprojectsExtraColumns(conn):
         conn.execute("alter table gitprojects add column cb_last_scan;");
         conn.execute("alter table gitprojects add column owner;");
         conn.execute("alter table gitprojects add column ownertype;");
@@ -74,7 +83,7 @@ def importGhtorrentProjectCsv(fname, conn):
         conn.execute("alter table gitprojects add column watchers_count;");
         conn.execute("alter table gitprojects add column network_count;");
         conn.execute("alter table gitprojects add column error;");
-
+    
     
 def createGitTables(conn):
     try:
@@ -139,9 +148,10 @@ class GitProjectInfo:
 # Cache the git object between calls
 git = None
 def gitInit(credentials):
-   global git
-   if (git is None):
-       git = Github(credentials["username"], credentials["password"], per_page=100)
+    global git
+    if (git is None):
+        git = Github(credentials["username"], credentials["password"], per_page=100)
+    return git
     
     
 def identifyNewProjects(conn, creds, thedate):
@@ -157,6 +167,13 @@ def identifyNewProjects(conn, creds, thedate):
     insertRepos(repos,conn,urlslist)
     
 def insertRepos(repos, conn, excludeUrls):
+    """Insert, skip, or update a list of git projects into the gitprojects table based on presence in excludeUrls
+    
+    @param repos: the object returned from a github search query
+    @param conn: a database connection
+    @param urlslist: a dictionary of url -> last update, to check whether each new project should be ignored, updated, or downloaded
+    @returns nothing; updates the gitprojects, gitfiles, and gitimports tables as a side effect
+    """
     throttleGitAccess(git, margin=10)
     for repo in repos:
         throttleGitAccess(git, margin=10)

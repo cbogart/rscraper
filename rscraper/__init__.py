@@ -6,7 +6,7 @@ from extractGitPackages import makeGitPseudoWebscrape, extractGitDescription
 from getRepoMetadata import getBioconductorWebscrape, getCranWebscrape
 from getRepoMetadata import createMetadataTables, saveMetadata, clearTaskViews
 from getRepoMetadata import getBioconductorDescription, getCranDescription
-from gitscraper import queryRandomProject, queryParticularProject, identifyNewProjects, CaughtUpException
+from gitscraper import queryRandomProject, queryParticularProject, identifyNewProjects, CaughtUpException, createFreshGitprojectsTable
 from crossref import fillInDois, citationtext2doi, createSyntheticCitations
 from scopus import findCanonicalFromDoi,  doScopusLookup, enable_scopus_proxy
 from utils import stripParentheticals, justAlphabetics, similar, jmemo
