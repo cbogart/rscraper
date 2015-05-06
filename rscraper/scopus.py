@@ -185,7 +185,7 @@ def doScopusRefresh(conn, creds):
           select distinct(scopus_id) from citations 
           where length(scopus_id) > 0 and 
             scopus_id != 'Result set was empty' and 
-            scopus_lookup_date < datetime('now', '-13 days') limit 50;""")
+            scopus_lookup_date < datetime('now', '-13 days') limit 150;""")
     
     for c in cur:
         print "Refreshing citation for scopus id:", c["citations.scopus_id"]
