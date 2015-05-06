@@ -1,4 +1,5 @@
 from gitscraper import GitProjectInfo
+from utils import ensure_unicode
 import re
 import pdb
 
@@ -97,7 +98,7 @@ def makeGitPseudoWebscrape(desc):
     for name in desc:
         
         ws[name] = {
-            "title": desc[name]["Title"][0].decode("utf-8"),
+            "title": ensure_unicode(desc[name]["Title"][0]),
             "repository": desc[name].get("repository", "git"),
             "priority": desc[name]["priority"],
             "user": desc[name]["user"],
