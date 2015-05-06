@@ -10,12 +10,13 @@ import urllib
 from utils import *
 from analyzeDeps import analyzeImports, parseDESCRIPTION
 import pdb
+import socket
 
 # Fixed sql statements
 filesColumns = "file_id, project_id, path, size, last_edit, retrieved, " +\
-               "repos, cb_last_scan, error"
+               "repos, cb_last_scan, error, sha"
 insertFilesSQL = "insert into gitfiles (" + filesColumns + ") values (" +\
-               "?,?,?,?,?,?,?,?,?);"
+               "?,?,?,?,?,?,?,?,?,?);"
 importsColumns = "file_id, project_id, package_name, cb_last_scan"
 insertImportsSQL = "insert into gitimports (" + importsColumns + ") values (" +\
                "?,?,?,?);"
@@ -178,40 +179,49 @@ def insertRepos(repos, conn, excludeUrls):
     for repo in repos:
         throttleGitAccess(git, margin=10)
         fullname = repo.owner.login + "/" + repo.name
-        if repo.url not in excludeUrls:
-            print "Inserting:",  fullname, "created", repo.created_at
-            conn.execute(insertProjectsColumns, 
-                 (repo.id,
-                  repo.url,
-                  repo.owner.id,
-                  repo.name,
-                  repo.description,
-                  repo.language,
-                  repo.created_at,
-                  None,   # ext_ref_id <- This is something relevant to ghtorrent; has no meaning here
-                  "0" if repo.fork else "",
-                  "0",   # Deleted.  PResumably it's not deleted if it showed up here. repo.deleted,
-                  None,   # cb_last_scan <- we'll fill this date in when we scan the actual files
-                  None,   # error <- ditto
-                  repo.pushed_at,
-                  repo.network_count,
-                  repo.watchers_count,
-                  repo.stargazers_count,
-                  repo.forks_count,
-                  repo.owner.login,
-                  repo.owner.type \
-                  ))
-        elif repo.url in excludeUrls and excludeUrls[repo.url] is not None and ymdhms2epoch(str(repo.pushed_at)) > ymdhms2epoch(excludeUrls[repo.url]) + (7*24*3600):
-            print "Marking", fullname, "for update because", repo.pushed_at, ">", excludeUrls[repo.url]
-            conn.execute("update gitprojects set cb_last_scan=null where url=?;", (repo.url,))
-        else:
-            print "Skipping", fullname
-        conn.commit()
+        try:
+            if repo.url not in excludeUrls:
+                print "Inserting:",  fullname, "created", repo.created_at
+                conn.execute(insertProjectsColumns, 
+                     (repo.id,
+                      repo.url,
+                      repo.owner.id,
+                      repo.name,
+                      repo.description,
+                      repo.language,
+                      repo.created_at,
+                      None,   # ext_ref_id <- This is something relevant to ghtorrent; has no meaning here
+                      "0" if repo.fork else "",
+                      "0",   # Deleted.  PResumably it's not deleted if it showed up here. repo.deleted,
+                      None,   # cb_last_scan <- we'll fill this date in when we scan the actual files
+                      None,   # error <- ditto
+                      repo.pushed_at,
+                      repo.network_count,
+                      repo.watchers_count,
+                      repo.stargazers_count,
+                      repo.forks_count,
+                      repo.owner.login,
+                      repo.owner.type \
+                      ))
+            elif repo.url in excludeUrls and excludeUrls[repo.url] is not None and ymdhms2epoch(str(repo.pushed_at)) > ymdhms2epoch(excludeUrls[repo.url]) + (7*24*3600):
+                print "Marking", fullname, "for update because", repo.pushed_at, ">", excludeUrls[repo.url]
+                conn.execute("update gitprojects set cb_last_scan=null where url=?;", (repo.url,))
+            else:
+                print "Skipping", fullname
+                conn.commit()
+        except socket.timeout, e:
+            print e
+            print "Network error: sleeping for a while"
+            time.sleep(10)
     
 def queryRandomProject(conn, credentials):
     projinf = getRandomProject(conn)
     gitInit(credentials)
-    populateProjectMetadata(projinf, conn, git)
+    fileImpCache = loadFileImportCache(projinf, conn)
+    conn.execute("delete from gitfiles where project_id = ?", (projinf.project_id,))
+    conn.execute("delete from gitimports where project_id = ?", (projinf.project_id,))
+    conn.commit()
+    populateProjectMetadata(projinf, conn, git, fileImpCache)
 
 def queryParticularProject(conn, credentials, user_slash_name):
     cur = conn.cursor()
@@ -227,12 +237,38 @@ def queryParticularProject(conn, credentials, user_slash_name):
     url = r1["gitprojects.url"]
     name = r1["gitprojects.name"]
     conn.execute("update gitprojects set cb_last_scan = null, error='' where id=?;", (id,));
-    conn.execute("delete from gitfiles where project_id = ?", (id,))
-    conn.execute("delete from gitimports where project_id = ?", (id,))
-    conn.commit()
     projinf = GitProjectInfo(name, id, url)
+    fileImpCache = loadFileImportCache(projinf, conn)
+    conn.execute("delete from gitfiles where project_id = ?", (projinf.project_id,))
+    conn.execute("delete from gitimports where project_id = ?", (projinf.project_id,))
+    conn.commit()
     gitInit(credentials)
-    populateProjectMetadata(projinf, conn, git)
+    populateProjectMetadata(projinf, conn, git, fileImpCache)
+    
+importCache = None
+def loadFileImportCache(projinf, conn):
+    global importCache
+    if importCache is None:
+        print "Loading cache of file hashes"
+        file_imp = conn.execute(r"""
+            select * from gitfiles left join gitimports 
+            on gitfiles.file_id=gitimports.file_id 
+            and gitfiles.project_id=gitimports.project_id 
+            where 
+             (gitfiles.error = '' or gitfiles.error is null);""")#, (projinf.project_id,))
+        cache= {}
+        for fi in file_imp:
+            sha = fi["gitfiles.sha"]
+            if sha not in cache: 
+                cache[sha] = {  "retrieved": fi["gitfiles.retrieved"], 
+                                "repos": fi["gitfiles.repos"], 
+                                "imports": { fi["gitimports.package_name"]: fi["gitimports.cb_last_scan"] }
+                                }
+            else:
+                cache[sha]["imports"][fi["gitimports.package_name"]] = fi["gitimports.cb_last_scan"]
+        print "Indexed", len(cache.keys()), "unique hashes"
+        importCache = cache
+    return importCache
 
 class CaughtUpException(Exception):
     pass
@@ -331,15 +367,21 @@ def readCachedFile(user, project_name, path):
    with open(cachename, "r") as f:
        return f.read()
 
-def queryFile(repo, projinf, path, git):
+def queryFile(repo, projinf, path, git, sha, cache):
+   cachename = getCachename(repo.owner.login, repo.name, path)
+   if (sha in cache):
+       print "       (found", path, "in cache)"
+       print "          --> imports= ", ",".join([str(k) for k in cache[sha]["imports"]])
+       return { "imports": [k for k in cache[sha]["imports"].keys() if k is not None], 
+                "cache": cachename, 
+                "error": "", 
+                "language": "unknown" }
    error = ""
-   cachename = ""
    language = ""
    imports = []
    try:
        throttleGitAccess(git)
        content = repo.get_contents("/" + urllib.quote(path.encode('utf-8'))).decoded_content
-       cachename = getCachename(repo.owner.login, repo.name, path)
        if (not (path.endswith("DESCRIPTION") or path.endswith("CITATION"))):
            cachename = "/tmp/temp.r"
        if not os.path.exists(os.path.dirname(cachename)):
@@ -362,14 +404,14 @@ def saveFileImportInfo(projinf, fileinf, leaf, conn, filenum):
        conn.execute(insertImportsSQL, (filenum, projinf.project_id, imp.strip(), int(time.time())))
    conn.execute(insertFilesSQL,
        (filenum, projinf.project_id, leaf.path, leaf.size, None, 1 if fileinf["error"] == "" else 0, 
-        "", int(time.time()), fileinf["error"]))
+        "", int(time.time()), fileinf["error"], leaf.sha))
    
 def updateProjectScanStatus(projinf, error, conn):
    conn.execute("update gitprojects set cb_last_scan=?, error=? where id=?",
        (int(time.time()), error, projinf.project_id))
    conn.commit()
 
-def populateProjectMetadata(projinf, conn, git):
+def populateProjectMetadata(projinf, conn, git, fileImpCache):
     throttleGitAccess(git)
     print "Scanning ", str(projinf)
     error = ""
@@ -377,16 +419,16 @@ def populateProjectMetadata(projinf, conn, git):
         projmeta = getProjectMetadata(projinf, git)
         saveProjectMetadata(projinf, projmeta, conn)
         filenum = 1
-        for leaf in projmeta["tree"].tree:
+        for leaf in projmeta["tree"].tree:    
             if hasDependencyInfo(leaf.path):
                 print "    file ", leaf.path
-                fileinf = queryFile(projmeta["repo"], projinf, leaf.path, git) 
+                fileinf = queryFile(projmeta["repo"], projinf, leaf.path, git, leaf.sha, fileImpCache) 
                 saveFileImportInfo(projinf, fileinf, leaf, conn, filenum)
                 if (fileinf["error"] != ""): error = fileinf["error"]
                 filenum += 1
             elif leaf.path.split("/")[-1] == "CITATION":
                 print "    file ", leaf.path
-                queryFile(projmeta["repo"], projinf, leaf.path, git) 
+                queryFile(projmeta["repo"], projinf, leaf.path, git, leaf.sha, fileImpCache) 
     except UnknownObjectException, e:
         error = str(e.status) + ": " + e.data["message"]
         print "    ERROR reading project ", projinf.username(), projinf.name, error
