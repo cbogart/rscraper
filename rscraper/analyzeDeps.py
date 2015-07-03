@@ -1,6 +1,7 @@
 import os
 import re
 import pdb
+import rscraper
 
 def analyzeImports(sourcefilename):
     """Read the source file to determine what packages/libraries/modules it depends on"""
@@ -45,7 +46,7 @@ def parseSections(txt):
             chunk.append(endless)
     if len(chunk) > 0:
         yield chunk
-
+ 
 def parseFields(chunk):
     fld = ""
     for line in chunk:
@@ -57,13 +58,9 @@ def parseFields(chunk):
     if fld != "": 
         yield fld
 
-def parseDESCRIPTION(txt):
-    def removeParenthetical(dep):
-        return dep.split("(")[0].strip()
-
+def parseDESCRIPTION_full(txt):
     db = dict()
-    #rawdata = dict()
-
+ 
     for sec in parseSections(txt):
         thissection = dict()
         for fld in parseFields(sec):
@@ -76,7 +73,38 @@ def parseDESCRIPTION(txt):
                 print(rest)
                 #pdb.set_trace()
                 #print(rest)
+ 
+            thissection[code] = restList
+        try:
+            db[thissection["Package"][0]] = thissection
+        except:
+            db["UNKNOWN"] = thissection
+            # Some packages don't mention the package name in the DESCRIPTIon file,
+            # but it's often OK; we can tell from the context what the name is.
+    return db
 
+def parseDESCRIPTION(txt):
+    #eturn rscraper.parseDCF.dcf2dict(txt)
+
+    def removeParenthetical(dep):
+        return dep.split("(")[0].strip()
+ 
+    db = dict()
+    #rawdata = dict()
+ 
+    for sec in parseSections(txt):
+        thissection = dict()
+        for fld in parseFields(sec):
+            code = fld.split(":")[0]
+            rest = fld.split(":", 1)[1]
+            rest = rest.strip()
+            try:
+                restList = [removeParenthetical(r.strip()) for r in rest.split(",")]
+            except:
+                print(rest)
+                #pdb.set_trace()
+                #print(rest)
+ 
             thissection[code] = restList
         try:
             db[thissection["Package"][0]] = thissection

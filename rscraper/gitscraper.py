@@ -3,6 +3,8 @@ import traceback
 import time
 # you need easy_install PyGithub or pip install PyGithub for this
 from github import Github, UnknownObjectException
+import json
+import stat
 import os
 import random
 import datetime
@@ -166,6 +168,66 @@ def identifyNewProjects(conn, creds, thedate):
     throttleGitAccess(git, margin=10)
     repos = git.search_repositories("pushed:" + thedate + " language:R", )
     insertRepos(repos,conn,urlslist)
+
+def getCranHistoricalDependencies(creds):
+    gitInit(creds)
+    throttleGitAccess(git, margin=10)
+    repos = git.search_repositories("user:cran")
+    repos = git.get_user("cran").get_repos()
+    for repo in repos:
+        throttleGitAccess(git, margin=10)
+        try:
+            updateHistoricalDependencies(repo, git)
+        except Exception, e:
+            print "Failed to update", repo.name, ":", e
+
+def historicalDependenciesDirectory(reponame):
+    def sanitize(reponame): return reponame.replace("/","_")
+    dirname = "depHistories/" + sanitize(reponame)
+    if not os.path.exists(os.path.dirname(dirname)):
+       os.makedirs(os.path.dirname(dirname))
+    return dirname
+
+
+def touchHistoricalDependenciesLastUpdate(reponame, content):
+    cacheDir = historicalDependenciesDirectory(reponame)
+    repolastupdate = cacheDir + "/lastupdate.txt"
+    with open(repolastupdate, "w") as f:
+        f.write(content)
+
+def fileAge(filename):
+    return time.time() - os.stat(filename)[stat.ST_MTIME]
+
+def checkHistoricalDependenciesLastUpdate(reponame):
+    """Return false if the lastupdate.txt file does not exist for this repo, or is older than 2 weeks"""
+    cacheDir = historicalDependenciesDirectory(reponame)
+    repolastupdate = cacheDir + "/lastupdate.txt"
+
+    if (not os.path.isfile(repolastupdate) or fileAge(repolastupdate) > 24*7*3600): 
+        return False
+    else:
+        return True
+     
+def updateHistoricalDependencies(repo, git):
+    depinfo = []
+    if (not checkHistoricalDependenciesLastUpdate(repo.name)):
+        for commit in repo.get_commits():
+            dep1 = { "message": commit.commit.message, "date": commit.commit.committer.date.isoformat() }
+            depinfo.append(dep1)
+            try:
+                cachefile = historicalDependenciesDirectory(repo.name) + "/" + commit.sha + "/DESCRIPTION"
+                if (not os.path.exists(cachefile)):
+                    print "Retrieving DESCRIPTION file for", repo.name, dep1["message"]
+                    throttleGitAccess(git, margin=10)
+                    content = repo.get_contents("/DESCRIPTION", ref=commit.sha).decoded_content
+                    if not os.path.exists(os.path.dirname(cachefile)):
+                        os.makedirs(os.path.dirname(cachefile))
+                    with open(cachefile, "w") as f:
+                        f.write(content)
+            except Exception, e:
+                print "Failed to download DESCRIPTION file for", repo.name, dep1, e
+     
+        touchHistoricalDependenciesLastUpdate(repo.name, json.dumps(depinfo, indent=4))
     
 def insertRepos(repos, conn, excludeUrls):
     """Insert, skip, or update a list of git projects into the gitprojects table based on presence in excludeUrls

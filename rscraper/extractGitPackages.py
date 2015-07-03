@@ -12,7 +12,9 @@ def priority(row):
                1
     return priority
 
-
+R_DEFAULT_PACKAGES = r"""R base boot class cluster codetools compiler datasets foreign graphics
+                         grDevices grid KernSmooth lattice MASS Matrix methods mgcv nlme nnet
+                        parallel rpart spatial splines stats stats4 survival tcltk tools utils""".split()
 def extractGitDescription(conn):
     pkgs = conn.execute(r"""select gitprojects.*, f1.path descpath
             from gitfiles f1 
@@ -24,6 +26,7 @@ def extractGitDescription(conn):
     desc = {}
     for p in pkgs:
         name = p["gitprojects.name"]
+        if (name in R_DEFAULT_PACKAGES): continue
         pri = priority(p)
         deep_name = re.search(r"""/([^0-9][^/]+)/DESCRIPTION""", p["descpath"])
         
