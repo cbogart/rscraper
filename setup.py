@@ -13,7 +13,7 @@ setup(
     name='rscraper',
     version='0.1.0',
 
-    description='Scrape information about R projects from Github'
+    description='Scrape information about R projects from Github',
     long_description=long_description,
 
     url='https://github.com/cbogart/rscraper',
