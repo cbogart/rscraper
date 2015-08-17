@@ -12,4 +12,4 @@ from scopus import findCanonicalFromDoi,  doScopusLookup, enable_scopus_proxy
 from utils import stripParentheticals, justAlphabetics, similar, jmemo
 from findAuthors import findAuthors
 from downloadscrape import downloadLatestRstudioLogs
-from parseDCF import parseDCF, DCFparse2DependencyLists
+from parseDCF import parseDCF, DCFparse2DependencyLists, DCFFormatError
