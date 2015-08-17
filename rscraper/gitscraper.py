@@ -183,7 +183,7 @@ def getCranHistoricalDependencies(creds):
 
 def historicalDependenciesDirectory(reponame):
     def sanitize(reponame): return reponame.replace("/","_")
-    dirname = "depHistories/" + sanitize(reponame)
+    dirname = "caches/depHistories/" + sanitize(reponame)
     if not os.path.exists(os.path.dirname(dirname)):
        os.makedirs(os.path.dirname(dirname))
     return dirname
@@ -444,13 +444,13 @@ def queryFile(repo, projinf, path, git, sha, cache):
    try:
        throttleGitAccess(git)
        content = repo.get_contents("/" + urllib.quote(path.encode('utf-8'))).decoded_content
-       if (not (path.endswith("DESCRIPTION") or path.endswith("CITATION"))):
+       if (not (path.endswith("DESCRIPTION") or path.endswith("CITATION") or path.endswith("NAMESPACE"))):
            cachename = "/tmp/temp.r"
        if not os.path.exists(os.path.dirname(cachename)):
            os.makedirs(os.path.dirname(cachename))
        with open(cachename, "w") as f:
            f.write(content)
-       if (not path.endswith("CITATION")):
+       if (not path.endswith("CITATION") and not path.endswith("NAMESPACE")):
            (language, imports) = analyzeImports(cachename)
    except UnknownObjectException, e:
        error = str(e.status) + ": " + e.data["message"]
@@ -491,6 +491,9 @@ def populateProjectMetadata(projinf, conn, git, fileImpCache):
             elif leaf.path.split("/")[-1] == "CITATION":
                 print "    file ", leaf.path
                 queryFile(projmeta["repo"], projinf, leaf.path, git, leaf.sha, fileImpCache) 
+            elif leaf.path.split("/")[-1] == "NAMESPACE":
+                print "    file ", leaf.path
+                queryFile(projmeta["repo"], projinf, leaf.path, git, leaf.sha, fileImpCache) 
     except UnknownObjectException, e:
         error = str(e.status) + ": " + e.data["message"]
         print "    ERROR reading project ", projinf.username(), projinf.name, error
@@ -503,6 +506,6 @@ def populateProjectMetadata(projinf, conn, git, fileImpCache):
    
 
 def getCachename(user, repo, path):
-       return "/".join(["cache",user, repo, path])
+       return "/".join(["caches","cache",user, repo, path])
 
 

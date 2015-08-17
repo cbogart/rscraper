@@ -9,7 +9,7 @@ import urllib
 import time
 
 def downloadDownloadsCacheDir():
-    dirname = "downloadsCache"
+    dirname = "caches/downloadsCache"
     if not os.path.exists(dirname):
         os.mkdir(dirname)
     return dirname

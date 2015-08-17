@@ -8,6 +8,8 @@ here = path.abspath(path.dirname(__file__))
 
 with open(path.join(here, 'DESCRIPTION.rst'), encoding='utf-8') as f:
     long_description = f.read()
+with open(path.join(here, 'config/requirements.txt'), encoding='utf-8') as f:
+    requirements = [req.trim() for req in f.read().split("\n")]
 
 setup(
     name='rscraper',
@@ -17,8 +19,8 @@ setup(
     long_description=long_description,
 
     url='https://github.com/cbogart/rscraper',
-    author='Chris Bogart'
-    author_email='cbogartdenver@gmail.com'
+    author='Chris Bogart',
+    author_email='cbogartdenver@gmail.com',
     license='Apache2',
     classifiers=[
         # How mature is this project? Common values are
@@ -34,6 +36,6 @@ setup(
     ],
 
     keywords='sample setuptools development',
-    packages=['rscraper']
-    install_requires=['PyGithub'],
+    packages=['rscraper'],
+    install_requires=requirements
 )

@@ -32,7 +32,7 @@ def scopus_proxy(url):
     global scopus_cache
     if isinstance(scopus_cache, int):
         try:
-            with open("scopus_cache.pickle") as f:
+            with open("caches/scopus_cache.pickle") as f:
                 scopus_cache = pickle.load(f)
         except Exception, e:
             print str(e)
@@ -45,7 +45,7 @@ def scopus_proxy(url):
         time.sleep(1)
         result = urllib2.urlopen(url).read()
         scopus_cache[url] = result
-        with open("scopus_cache.pickle", "w") as f:
+        with open("caches/scopus_cache.pickle", "w") as f:
             pickle.dump(scopus_cache,f)
         return result
     

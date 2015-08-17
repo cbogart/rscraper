@@ -223,8 +223,6 @@ def saveMetadata(pkgDescription, pkgWebscrape, conn):
                  rec))
         except Exception, e:
             print str(e), pkgWebscrape[rec]
-            pdb.set_trace()
-            print str(e)
         
         # Write whatever citation information we have into the citations table
         if "bibtex_citations" in pkgWebscrape[rec] and len(pkgWebscrape[rec]["bibtex_citations"] ) > 0:
