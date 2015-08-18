@@ -342,8 +342,7 @@ def getRandomProject(conn):
     rows = cur.fetchall()
     if len(rows) == 0:
         raise CaughtUpException("NO random project could be chosen -- none match the criterion.")
-    if (len(rows) % 50 == 0):
-        print "\t", len(rows), " projects remain at", datetime.datetime.now().isoformat(), "*********   ************   **********"
+    print "\t", len(rows), " projects remain at", datetime.datetime.now().isoformat(), "*********   ************   **********"
     randomrow = random.choice(rows)
     return GitProjectInfo(randomrow['gitprojects.name'], randomrow['gitprojects.id'], randomrow['gitprojects.url'])
 
