@@ -200,8 +200,7 @@ def doScopusRefresh(conn, creds):
             print "    Cannot refresh because", str(e)
     
     
-def doScopusLookup(conn, limitTo=[]):
-    creds = rscraper.loadCredentials("credentials.json")
+def doScopusLookup(conn, creds, limitTo=[]):
     doScopusRefresh(conn,creds)
     
     cur = conn.execute("select * from citations where (scopus_lookup_date is null or scopus_lookup_date = '')" +\

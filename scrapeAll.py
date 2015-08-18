@@ -30,7 +30,7 @@ except CaughtUpException:
 downloadLatestRstudioLogs()
 
 
-def createCranBiocGitTables(conn):
+def createCranBiocGitTables(conn, creds):
         """Create a table of R packages from CRAN, Bioconductor, and Github.
 
         Use previously-scraped information about github R projects to populate
@@ -65,6 +65,6 @@ def createCranBiocGitTables(conn):
         fillInDois(conn)
         print "SCOPUS***********************"
         enable_scopus_proxy(False)
-        doScopusLookup(conn)
+        doScopusLookup(conn, creds)
 
-createCranBiocGitTables(conn)
+createCranBiocGitTables(conn, creds)
