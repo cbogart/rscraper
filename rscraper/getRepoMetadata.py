@@ -32,18 +32,21 @@ def getBioconductorWebscrape(limit = 99999, limitTo = []):
         if limitTo and name not in limitTo:
             continue
         fullurl = "http://www.bioconductor.org/packages/release/bioc/" + url
-        detail = BeautifulSoup(urllib2.urlopen(fullurl).read())
-        views = detail.find("td", text="biocViews").find_parent().find_all("a")
-        viewlist = [v.get_text() for v in views]
-        #citation = do_or_error(lambda: detail.find("div", id="bioc_citation").get_text())
-        citation = do_or_error(lambda: scrapeCitationBioc(name), msg={"citations": "HTTP Error 404: Not Found"})
-        titleparent = do_or_error(lambda: detail.find("h1").find_parent())
-        title = do_or_error(lambda: titleparent.find("h2").get_text())
-        authorlist = do_or_error(lambda: titleparent.find("p", text = re.compile(r'Author:.*')).get_text().replace("Author: ","").strip())
-        description = do_or_error(lambda: titleparent.find_all("p")[1].get_text())
-        print name, url, '/'.join(viewlist)
-        categories[name] = { "url": fullurl, "repository": "bioconductor", "authors": authorlist, "views": viewlist, 
+        try:
+            detail = BeautifulSoup(urlmemo(fullurl, 10)) #urllib2.urlopen(fullurl).read())
+            views = detail.find("td", text="biocViews").find_parent().find_all("a")
+            viewlist = [v.get_text() for v in views]
+            #citation = do_or_error(lambda: detail.find("div", id="bioc_citation").get_text())
+            citation = do_or_error(lambda: scrapeCitationBioc(name), msg={"citations": "HTTP Error 404: Not Found"})
+            titleparent = do_or_error(lambda: detail.find("h1").find_parent())
+            title = do_or_error(lambda: titleparent.find("h2").get_text())
+            authorlist = do_or_error(lambda: titleparent.find("p", text = re.compile(r'Author:.*')).get_text().replace("Author: ","").strip())
+            description = do_or_error(lambda: titleparent.find_all("p")[1].get_text())
+            print name, url, '/'.join(viewlist)
+            categories[name] = { "url": fullurl, "repository": "bioconductor", "authors": authorlist, "views": viewlist, 
                             "citation": citation["citations"], "title": title, "description": description }
+        except Exception, e:
+            print "Could not scrape Bioconductor package", p, e
 
     return categories
 
@@ -51,7 +54,7 @@ def scrapeCitationBioc(name):
     citeurl = "http://bioconductor.org/packages/release/bioc/citations/" + urllib.quote(name) + "/citation.html"
     print citeurl
     time.sleep(1)
-    citepage = BeautifulSoup(urllib2.urlopen(citeurl).read())
+    citepage = BeautifulSoup(urlmemo(citeurl, age=10)) #urllib2.urlopen(citeurl).read())
     # To Do:
     # More structured citation info available from https://hedgehog.fhcrc.org/bioconductor/trunk/madman/Rpacks/  (package)   /inst/CITATION
     #  but it's R code that generates a citation, and it's done in a pretty varied way, so it would have to be parsed by an R subprocess.
@@ -116,7 +119,7 @@ def extractCITATIONfields(citationPart):
 def scrapeCitationCran(name):
     citeurl = "http://cran.r-project.org/web/packages/" + urllib.quote(name) + "/citation.html"
     print citeurl
-    citepage = BeautifulSoup(urllib2.urlopen(citeurl).read())
+    citepage = BeautifulSoup(urlmemo(citeurl, 10)) #urllib2.urlopen(citeurl).read())
     maincitation = citepage.find("blockquote").find("p").get_text().replace("\n","").strip()
     bibtex = [pre.get_text() for pre in citepage.find_all("pre")]
     return { "citations": maincitation, "bibtex": bibtex}
@@ -133,24 +136,27 @@ def getCranWebscrape(limit=9999999, limitTo = []):
             continue
         title = do_or_error(lambda: p.find_parent().find_parent().find_all("td")[-1].get_text())
         fullurl = "http://cran.r-project.org/web/packages/" + name + "/index.html"
-        detail = BeautifulSoup(urllib2.urlopen(fullurl).read())
         try:
-            views = detail.find("td", text=re.compile(r'In.*views')).find_parent().find_all("a")
-            viewlist = [v.get_text() for v in views]
-        except:
-            viewlist = []
-        print name, fullurl, '/'.join(viewlist)
-        try:
-            authorlist = detail.find("td", text="Author:").parent.find_all("td")[1].get_text()
-        except:
-            authorlist = ""
-        description = do_or_error(lambda: detail.find("p").get_text())
-        try:
-            citeinfo = scrapeCitationCran(name)
-        except:
-            citeinfo = {"citations": "", "bibtex" : [] }
+            detail = BeautifulSoup(urlmemo(fullurl, 10)) #urllib2.urlopen(fullurl).read())
+            try:
+                views = detail.find("td", text=re.compile(r'In.*views')).find_parent().find_all("a")
+                viewlist = [v.get_text() for v in views]
+            except:
+                viewlist = []
+            print name, fullurl, '/'.join(viewlist)
+            try:
+                authorlist = detail.find("td", text="Author:").parent.find_all("td")[1].get_text()
+            except:
+                authorlist = ""
+            description = do_or_error(lambda: detail.find("p").get_text())
+            try:
+                citeinfo = scrapeCitationCran(name)
+            except:
+                citeinfo = {"citations": "", "bibtex" : [] }
             
-        categories[name] = { "url": fullurl, "repository": "cran", "authors": authorlist, "views": viewlist, "bibtex_citations": citeinfo["bibtex"], "citation": citeinfo["citations"], "title": title, "description": description }
+            categories[name] = { "url": fullurl, "repository": "cran", "authors": authorlist, "views": viewlist, "bibtex_citations": citeinfo["bibtex"], "citation": citeinfo["citations"], "title": title, "description": description }
+        except Exception, e:
+            print "Could not scrape CRAN for ", p, e
 
     return categories
 

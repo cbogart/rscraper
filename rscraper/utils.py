@@ -4,6 +4,7 @@ import datetime
 from difflib import SequenceMatcher
 import os
 import json
+import urllib2
 
 def stripParentheticals(stuff):
     oldstuff = ""
@@ -36,6 +37,24 @@ def ymdhms2epoch(dt):
     
 def ymd2epoch(ymd): return int(datetime.datetime.strptime(ymd, "%Y-%m-%d").date().strftime("%s"))
 
+def urlmemo(url, age=None):
+    """Persistently memoize a retrieval of a URL"""
+    filename = "caches/urlmemo/" + (justAlphabeticsUnderscore(url.replace("/","_"))) + "_" + str(zlib.crc32(url))
+    os.makedirs("caches/urlmemo")
+    if age is not None \
+            and os.path.isfile(filename) \
+            and os.path.getmtime(filename) < int(time.time()) - (age*24*3600):
+        os.remove(filename)
+    try:
+        with open(filename, "r") as f:
+            return f.read()
+    except:
+        with open(filename, "w") as f:
+            content = urllib2.urlopen(url).read()
+            f.write(content)
+            return content
+    
+
 def jmemo(item, filen, age=None):
     """Persistently memoize a function returning a json object
 
@@ -58,6 +77,11 @@ def jmemo(item, filen, age=None):
             f.write(json.dumps(i, indent=4))
             return i
      
+def justAlphabeticsUnderscore(stuff):
+    stuff = re.sub(r"[^a-zA-Z_0-9]"," ", stuff)
+    stuff = re.sub(r"\s+", " ", stuff)
+    return stuff
+
 def justAlphabetics(stuff):
     stuff = re.sub(r"[^a-zA-Z0-9]"," ", stuff)
     stuff = re.sub(r"\s+", " ", stuff)
